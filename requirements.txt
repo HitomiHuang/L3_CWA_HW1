@@ -1,0 +1,9 @@
+requests
+pandas
+streamlit
+plotly
+folium
+streamlit-folium
+python-dotenv
+tzdata
+truststore

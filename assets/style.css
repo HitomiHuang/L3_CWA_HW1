@@ -1,0 +1,62 @@
+.stApp {
+    background: #F5F7FB;
+    color: #1E293B;
+}
+
+.weather-header {
+    padding: 1.25rem 0 0.55rem;
+}
+
+.weather-header .eyebrow {
+    color: #4A90E2;
+    font-size: 0.74rem;
+    font-weight: 750;
+    letter-spacing: 0.13em;
+}
+
+.weather-header h1 {
+    color: #1E293B;
+    font-size: clamp(1.9rem, 4vw, 2.7rem);
+    letter-spacing: -0.04em;
+    margin: 0.25rem 0;
+}
+
+.weather-header p, .update-label, .source-label { color: #64748B; }
+.update-label, .source-label { font-size: 0.87rem; padding: 0.25rem 0 0.8rem; }
+.source-label { text-align: right; }
+
+.hero-card {
+    background: linear-gradient(135deg, #FFFFFF 10%, #EDF5FF 100%);
+    border: 1px solid #E3ECF7;
+    border-radius: 18px;
+    min-height: 235px;
+    padding: 1.5rem 1.65rem;
+    box-shadow: 0 10px 28px rgba(30, 64, 120, 0.06);
+}
+
+.hero-topline { color: #1E293B; font-size: 1.08rem; font-weight: 700; }
+.hero-topline span { color: #64748B; font-size: 0.78rem; font-weight: 500; }
+.hero-condition { color: #475569; font-size: 1.1rem; margin-top: 1.3rem; }
+.hero-temperature { align-items: baseline; color: #1E293B; display: flex; font-size: clamp(2.9rem, 6vw, 4.4rem); font-weight: 750; letter-spacing: -0.07em; line-height: 1.08; margin-top: 0.1rem; }
+.temp-divider { color: #CBD5E1; font-size: 2rem; font-weight: 400; margin: 0 0.5rem; }
+.hero-caption, .period-caption { color: #64748B; font-size: 0.78rem; margin-top: 0.8rem; }
+
+.period-card {
+    background: #FFFFFF;
+    border: 1px solid #E8EDF4;
+    border-radius: 16px;
+    box-shadow: 0 5px 18px rgba(15, 23, 42, 0.035);
+    min-height: 150px;
+    padding: 1rem 1.1rem;
+}
+
+.period-time { color: #64748B; font-size: 0.78rem; }
+.period-weather { color: #1E293B; font-size: 1.05rem; font-weight: 700; margin-top: 0.6rem; }
+.period-temp { color: #334155; font-size: 1.38rem; font-weight: 700; margin-top: 0.45rem; }
+.period-temp span { color: #94A3B8; font-size: 1rem; font-weight: 400; }
+
+@media (max-width: 700px) {
+    .source-label { text-align: left; }
+    .hero-card { min-height: 205px; padding: 1.25rem; }
+    .period-card { min-height: 135px; }
+}
