@@ -5,9 +5,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
-import pandas as pd
-
-
 class ForecastRepository:
     def __init__(self, database_path: str | Path) -> None:
         self.database_path = Path(database_path)
@@ -64,7 +61,24 @@ class ForecastRepository:
             row = connection.execute("SELECT * FROM forecast_runs ORDER BY fetched_at DESC, id DESC LIMIT 1").fetchone()
         return dict(row) if row else None
 
-    def get_recent_runs(self, limit: int = 10) -> pd.DataFrame:
+    def record_crawl_result(self, dataset_id: str, started_at: str, finished_at: str,
+                            status: str, record_count: int = 0, error_message: str | None = None) -> None:
+        with self._connection() as connection:
+            connection.execute(
+                """INSERT INTO crawl_runs (dataset_id, started_at, finished_at, status, record_count, error_message)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (dataset_id, started_at, finished_at, status, record_count, error_message),
+            )
+
+    def get_recent_crawl_runs(self, limit: int = 10) -> list[dict[str, Any]]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM crawl_runs ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_recent_runs(self, limit: int = 10):
+        import pandas as pd
         with self._connection() as connection:
             return pd.read_sql_query(
                 """SELECT id AS run_id, dataset_id, fetched_at, issue_time, source_updated, record_count
@@ -101,7 +115,8 @@ class ForecastRepository:
             row = connection.execute("SELECT * FROM weekly_forecast_runs ORDER BY fetched_at DESC, id DESC LIMIT 1").fetchone()
         return dict(row) if row else None
 
-    def get_weekly_periods(self, run_id: int, location: str | None = None) -> pd.DataFrame:
+    def get_weekly_periods(self, run_id: int, location: str | None = None):
+        import pandas as pd
         query = """SELECT p.location, p.start_time, p.end_time, p.wx, p.description,
                           p.min_temp, p.max_temp, p.pop, p.relative_humidity, r.fetched_at
                    FROM weekly_forecast_periods AS p JOIN weekly_forecast_runs AS r ON r.id = p.run_id
@@ -145,7 +160,8 @@ class ForecastRepository:
             row = connection.execute("SELECT * FROM observation_runs ORDER BY fetched_at DESC, id DESC LIMIT 1").fetchone()
         return dict(row) if row else None
 
-    def get_observations(self, run_id: int, county: str | None = None) -> pd.DataFrame:
+    def get_observations(self, run_id: int, county: str | None = None):
+        import pandas as pd
         query = """SELECT station_id, station_name, county, town, observed_at, latitude, longitude,
                           weather, temperature, relative_humidity, wind_speed
                    FROM station_observations WHERE run_id = ?"""
@@ -157,7 +173,8 @@ class ForecastRepository:
         with self._connection() as connection:
             return pd.read_sql_query(query, connection, params=parameters)
 
-    def get_snapshot_history(self, location: str, start_time: str, end_time: str) -> pd.DataFrame:
+    def get_snapshot_history(self, location: str, start_time: str, end_time: str):
+        import pandas as pd
         with self._connection() as connection:
             return pd.read_sql_query(
                 """SELECT r.id AS run_id, r.fetched_at, p.wx, p.min_temp, p.max_temp, p.pop
@@ -168,7 +185,8 @@ class ForecastRepository:
                 params=(location, start_time, end_time),
             )
 
-    def get_run_periods(self, run_id: int, location: str | None = None) -> pd.DataFrame:
+    def get_run_periods(self, run_id: int, location: str | None = None):
+        import pandas as pd
         query = """SELECT p.location, p.start_time, p.end_time, p.wx, p.weather_code,
                           p.min_temp, p.max_temp, p.pop, p.comfort, r.fetched_at
                    FROM forecast_periods AS p JOIN forecast_runs AS r ON r.id = p.run_id

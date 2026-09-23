@@ -1,0 +1,31 @@
+name: 更新天氣資料
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 抓取 CWA API、寫入 SQLite 並匯出 JSON
+        env:
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+        run: python scripts/fetch_once.py --all
+      - name: 儲存資料庫與網站快照
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f database/weather.db public/data/snapshot.json
+          if ! git diff --cached --quiet; then
+            git commit -m "data: update CWA weather snapshot"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

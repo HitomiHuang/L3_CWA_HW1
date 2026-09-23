@@ -1,138 +1,82 @@
-# 台灣天氣預報儀表板
+# 台灣天氣觀測地圖
 
-以中央氣象署（CWA）預報及測站觀測資料建立的單頁天氣儀表板。專案串接 **CWA API → JSON → Python / Pandas → SQLite / SQL → Streamlit**，並以 Folium 顯示全台縣市代表點。
+這個專案有兩個入口，共用同一份中央氣象署資料：
 
-## 功能
+- **Vercel 網站**：public/ 的純前端全版面地圖，讀取公開的 public/data/snapshot.json，沒有網站後端或 API Key。
+- **課程資料流程**：Python 定時讀取 CWA API，解析 JSON，存入 SQLite，再匯出網站快照；app.py 另外提供 Streamlit / Pandas / Folium / SQL 展示。
 
-- 取得 22 縣市的 `Wx`、`MinT`、`MaxT`、`PoP`、`CI` 預報。
-- 依預報有效時間區間對齊欄位，資料以台灣時區儲存。
-- 使用 Pandas 做基本欄位與溫度範圍檢查。
-- 每次成功更新建立一個 SQLite 預報批次；失敗時保留最近成功批次。
-- 切換縣市查看主卡、時段卡、最高／最低溫圖、降雨機率圖與 SQL 查詢表格。
-- Folium 地圖顯示同一預報時段的縣市代表點及最高溫圖例。
-- 獨立儲存 F-D0047-091 逐 12 小時的一週預報，不與 36 小時資料混合。
-- 顯示同縣市測站的整點實測氣溫、相對濕度、風速與觀測時間。
-- 依相同資料批次和有效時段列出最高溫與降雨機率排行。
-- 比較同一預報有效時段的歷次預報快照，辨識預報版本修訂。
-- 提供手動更新按鈕與命令列單次抓取腳本。
-- 可展開查看最近成功儲存的預報批次。
+資料流程：**CWA API → Python 爬蟲 → SQLite 批次與執行紀錄 → JSON 快照 → Vercel 靜態網站**。
 
-目前版本呈現的是**預報**，沒有把預報數值當作測站實測；地圖標記是縣市代表點，不是測站位置。預報快照只供查看歷次批次，沒有將其描述為歷史實測天氣。
+## 網站功能
 
-## 環境需求
+- 預設顯示**最新測站氣溫**。全台視角為各縣市有效測站的算術平均；放大地圖顯示測站實際位置與個別讀值。
+- 切換測站**相對濕度、平均風速**，以及縣市**預報最高溫、降雨機率**五種圖層。
+- 搜尋縣市或測站，點選地圖或縣市清單查看觀測時間、站名、濕度、風速、36 小時預報、一週預報與趨勢圖。
+- 預報時段切換、全台定位、目前圖層 CSV 下載、來源與爬蟲紀錄查詢。
+- 深色全版面地圖、淺色左右資料面板與手機版選單。
+- 明確標示抓取時間；網站「重讀」只會重新載入已發布的 JSON，不能觸發雲端爬蟲。
 
-- Python 3.11 或 3.12
-- 中央氣象署開放資料平台帳號與 API 授權碼
+測站觀測是實際量測；預報圖層使用縣市代表座標。縣市測站平均是此專案計算的摘要，不是中央氣象署發布的縣市官方氣溫。
 
-SQLite 使用 Python 內建的 `sqlite3`，不用另外安裝 SQLite Python 套件。
+## 本機抓取與預覽
 
-## 安裝
+需要 Python 3.11 以上和[中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)授權碼。把 .env.example 複製為 .env，填入：
 
-在專案根目錄執行：
+~~~text
+CWA_API_KEY=你的授權碼
+~~~
 
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
+.env 已排除於 Git。從專案根目錄執行：
 
-若 PowerShell 阻擋虛擬環境啟用，可在目前終端機使用：
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.venv\Scripts\Activate.ps1
-```
-
-## 設定 API Key
-
-1. 到[中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)註冊並取得授權碼。
-2. 將 `.env.example` 複製為 `.env`。
-3. 在 `.env` 設定 `CWA_API_KEY=你的授權碼`。
-
-`.env` 已列入 `.gitignore`。不要把授權碼貼到程式、README、GitHub 或畫面中。
-
-### 部署到 Streamlit Community Cloud
-
-在 `share.streamlit.io` 的 App 設定中開啟 **Secrets**，貼上 TOML 格式（請換成自己的授權碼）：
-
-```toml
-CWA_API_KEY = "你的中央氣象署授權碼"
-```
-
-若 App 已建立，從工作區 App 的選單進入 **Settings → Secrets**；儲存後重新啟動 App。Key 名稱需為根層的 `CWA_API_KEY`，不要使用 `.env` 的未加引號格式。程式也接受分組寫法 `[cwa]` 下的 `api_key`。本機仍可沿用 `.env`，也可在未提交的 `.streamlit/secrets.toml` 使用相同 TOML 格式。
-
-## 執行
-
-啟動儀表板：
-
-```powershell
-python -m streamlit run app.py
-```
-
-在側欄按「更新所有資料」後，各資料集的成功批次會分別寫入 `database/weather.db`；單一資料集失敗時，其他成功批次仍會保留。也可以從專案根目錄單次更新 36 小時預報：
-
-```powershell
-python scripts/fetch_once.py
-```
-
-補抓三種資料集可加 `--all`：
-
-```powershell
+~~~powershell
 python scripts/fetch_once.py --all
-```
+python scripts/dev_server.py
+~~~
 
-第一次啟動會自動建立資料庫和資料表。沒有 API Key 時，畫面仍會啟動並提示設定方式；若資料庫已有成功資料，API 暫時失敗時仍可查看最後一次儲存的預報。
+開啟 http://127.0.0.1:8765/。第一次抓取會建立 database/weather.db 與 public/data/snapshot.json。如果只需從現有 SQLite 重新產生網站快照，可執行 python scripts/fetch_once.py --export-only。
 
-## 專案結構
+爬蟲只使用 Python 標準函式庫。它分別抓取 36 小時預報 F-C0032-001、一週預報 F-D0047-091 與測站觀測 O-A0001-001；每個資料集在 crawl_runs 留下成功或失敗、筆數及時間。成功批次完整寫入 SQLite；失敗不會覆蓋最近成功資料。
 
-```text
-app.py
-config.py
-services/
-  cwa_client.py
-  forecast_parser.py
-  weekly_forecast_parser.py
-  observation_parser.py
-  parse_utils.py
-  weather_service.py
-database/
-  schema.sql
-  repository.py
-components/
-  charts.py
-  map_view.py
-assets/style.css
-.streamlit/config.toml
-scripts/fetch_once.py
-tests/fixtures/sample_forecast.json
-```
+## 定時更新與 Vercel 部署
 
-## 資料與來源
+1. 將專案推送至 GitHub，在儲存庫 **Settings → Secrets and variables → Actions** 建立 CWA_API_KEY Repository secret。
+2. 匯入同一個儲存庫到 Vercel；Framework Preset 選 **Other**，Root Directory 用專案根目錄。vercel.json 已設定 public 為輸出目錄。**Vercel 不需要 CWA_API_KEY**。
+3. .github/workflows/refresh-weather.yml 每小時執行一次，也可在 GitHub Actions 頁面手動執行。它抓取 CWA API，將 SQLite 資料庫與 JSON 快照提交回儲存庫。新提交由 Vercel 的 Git 整合重新部署。
 
-- 資料集：[一般天氣預報－今明 36 小時天氣預報 F-C0032-001](https://opendata.cwa.gov.tw/dataset/forecast/F-C0032-001)
-- 一週預報：[臺灣各縣市鄉鎮未來 1 週逐 12 小時天氣預報 F-D0047-091](https://opendata.cwa.gov.tw/dataset/forecast/F-D0047-091)
-- 測站觀測：[氣象觀測站－全測站逐時氣象資料 O-A0001-001](https://opendata.cwa.gov.tw/dataset/statisticDays/O-A0001-001)
-- API 使用方式：[中央氣象署開發指南](https://opendata.cwa.gov.tw/devManual/insrtuction)
-- 儀表板僅在使用者按下更新時呼叫三個資料集 API；切換縣市和圖表不會重新抓取。
-- 天氣指標：`Wx` 天氣現象、`MinT` 最低溫、`MaxT` 最高溫、`PoP` 降雨機率、`CI` 舒適度。
+GitHub Actions 排程可能延遲，或因儲存庫設定、分支保護、缺少 Secret 而失敗。網站會顯示最後一次成功發布的快照與時間；Vercel 靜態頁本身不會直接更新資料。若先只需展示網站，儲存庫內已包含一份可顯示的 public/data/snapshot.json。
 
-`tests/fixtures/sample_forecast.json` 是用來說明 JSON 欄位階層的示意資料，不含 API Key，也不是即時資料集回應。
+database/weather.db 平常受 .gitignore 保護，不會因本機執行而意外加入提交；排程工作明確用 git add -f 保存資料庫。請不要把 .env 或 API Key 加入版本控制。
 
-## 資料庫結構
+## Streamlit 課程展示
 
-- `forecast_runs` 保存資料集代碼、抓取時間、來源發布時間及批次列數。
-- `forecast_periods` 保存縣市與預報有效區間的指標，以 `run_id + location + start_time + end_time` 唯一識別。
-- `weekly_forecast_runs` / `weekly_forecast_periods` 獨立保存逐 12 小時的一週預報。
-- `observation_runs` / `station_observations` 保存測站 ID、座標、觀測時間和實測氣象值。
-- 每次成功抓取在單一 SQLite transaction 中寫入；空批次不會成為成功批次。
-- `database/weather.db` 是本機執行後產生的資料檔，已排除於 Git。
+~~~powershell
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
+~~~
 
-## 已知限制
+Streamlit 版保留 Pandas 表格、SQL 查詢、Folium 地圖、溫度與降雨趨勢、歷次預報版本比較，也能按鈕更新三種資料集。畫面中的「爬蟲執行紀錄（SQLite）」可檢查抓取結果。更新完成時同樣匯出 Vercel 使用的 JSON。
 
-- 一週預報以 F-D0047-091 每 12 小時區間獨立呈現，不與 36 小時預報直接合併。
-- 測站觀測以 O-A0001-001 整點資料顯示站名和實際觀測時間；同縣市沒有有效讀值時會提示暫無資料。
-- 預報版本比較需要在同一有效時段仍存在時再次抓取；快照不代表歷史實測。
-- 地圖使用人工整理的縣市代表座標，Popup 提供該縣市同一有效時段的預報。
-- 地圖點擊不會切換縣市；請用縣市下拉選單切換圖表與資料表。
-- 真正的資料更新需要有效 CWA API Key 和網路連線。
+SQLite 資料表：
+
+- crawl_runs：每次 API 抓取的資料集、開始／結束時間、成功或失敗、筆數及錯誤。
+- forecast_runs / forecast_periods：36 小時預報批次和縣市時段。
+- weekly_forecast_runs / weekly_forecast_periods：逐 12 小時的一週預報。
+- observation_runs / station_observations：測站座標、觀測時間、實測值。
+
+## 驗證
+
+~~~powershell
+python -m unittest discover -s tests -v
+node --check public/app.js
+~~~
+
+測試使用離線範例，確認成功與失敗抓取會留下紀錄，JSON 包含最新資料且不含 API Key。
+
+## 資料來源
+
+- [中央氣象署開放資料平台](https://opendata.cwa.gov.tw/)
+- [今明 36 小時天氣預報 F-C0032-001](https://opendata.cwa.gov.tw/dataset/forecast/F-C0032-001)
+- [一週預報 F-D0047-091](https://opendata.cwa.gov.tw/dataset/forecast/F-D0047-091)
+- [全測站逐時氣象資料 O-A0001-001](https://opendata.cwa.gov.tw/dataset/statisticDays/O-A0001-001)
+
+底圖由 OpenStreetMap 提供，並在前端轉為深色樣式；網路無法載入地圖圖磚時，側邊縣市資料仍可查閱。

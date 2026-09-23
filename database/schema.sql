@@ -1,5 +1,17 @@
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS crawl_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dataset_id TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    finished_at TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('success', 'failed')),
+    record_count INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_crawl_runs_started_at ON crawl_runs (started_at DESC, id DESC);
+
 CREATE TABLE IF NOT EXISTS forecast_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     dataset_id TEXT NOT NULL,

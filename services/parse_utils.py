@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import math
+from datetime import datetime
 from typing import Any
-
-import pandas as pd
+from zoneinfo import ZoneInfo
 
 from config import TIMEZONE
 
@@ -21,13 +21,14 @@ def number(value: Any) -> float | None:
 
 
 def taipei_iso(value: Any) -> str | None:
-    parsed = pd.to_datetime(value, errors="coerce")
-    if pd.isna(parsed):
+    if value is None or str(value).strip() == "":
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.tz_localize(TIMEZONE)
-    else:
-        parsed = parsed.tz_convert(TIMEZONE)
+    try:
+        parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).strip().replace("/", "-").replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    taipei = ZoneInfo(TIMEZONE)
+    parsed = parsed.replace(tzinfo=taipei) if parsed.tzinfo is None else parsed.astimezone(taipei)
     return parsed.isoformat(timespec="seconds")
 
 

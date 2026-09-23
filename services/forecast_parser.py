@@ -1,8 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
-
-import pandas as pd
 
 from services.parse_utils import number as _number, taipei_iso as _taipei_iso
 
@@ -69,20 +68,25 @@ def parse_36_hour_forecast(payload: dict[str, Any]) -> tuple[list[dict[str, Any]
     return output, issue_time, source_updated
 
 
-def validate_forecast_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:
-    """Return a DataFrame for quality checks while leaving sparse values intact."""
-    frame = pd.DataFrame(rows)
-    if frame.empty:
-        return frame
-    frame["start_time"] = pd.to_datetime(frame["start_time"], errors="coerce")
-    frame["end_time"] = pd.to_datetime(frame["end_time"], errors="coerce")
-    invalid = frame["start_time"].isna() | frame["end_time"].isna()
-    if invalid.any():
-        raise ValueError(f"有 {int(invalid.sum())} 筆預報的有效時間格式錯誤。")
-    reversed_ranges = frame["end_time"] <= frame["start_time"]
-    if reversed_ranges.any():
-        raise ValueError(f"有 {int(reversed_ranges.sum())} 筆預報的結束時間不晚於開始時間。")
-    invalid_temps = frame["min_temp"].notna() & frame["max_temp"].notna() & (frame["min_temp"] > frame["max_temp"])
-    if invalid_temps.any():
-        raise ValueError(f"有 {int(invalid_temps.sum())} 筆資料的最低溫高於最高溫。")
-    return frame
+def validate_forecast_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Check time ranges and temperatures without adding runtime dependencies."""
+    invalid_time = reversed_range = invalid_temps = 0
+    for row in rows:
+        try:
+            start = datetime.fromisoformat(row["start_time"])
+            end = datetime.fromisoformat(row["end_time"])
+        except (KeyError, TypeError, ValueError):
+            invalid_time += 1
+            continue
+        if end <= start:
+            reversed_range += 1
+        low, high = row.get("min_temp"), row.get("max_temp")
+        if low is not None and high is not None and low > high:
+            invalid_temps += 1
+    if invalid_time:
+        raise ValueError(f"有 {invalid_time} 筆預報的有效時間格式錯誤。")
+    if reversed_range:
+        raise ValueError(f"有 {reversed_range} 筆預報的結束時間不晚於開始時間。")
+    if invalid_temps:
+        raise ValueError(f"有 {invalid_temps} 筆資料的最低溫高於最高溫。")
+    return rows

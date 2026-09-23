@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101c2d">
+  <title>台灣天氣觀測地圖｜CWA 資料儀表板</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/site.css?v=6">
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script defer src="/app.js?v=5"></script>
+</head>
+<body>
+  <div id="map" aria-label="台灣天氣地圖"></div>
+  <div class="map-shade" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="brand"><div class="brand-icon">✳</div><div><strong>台灣天氣觀測地圖</strong><small>TAIWAN WEATHER ATLAS</small></div></div>
+    <div class="top-status"><span class="status-dot"></span><span id="freshness">正在讀取資料…</span></div>
+    <button id="menu-toggle" class="icon-button mobile-only" type="button" aria-label="開啟選單">☰</button>
+  </header>
+
+  <aside class="sidebar panel" id="sidebar">
+    <div class="sidebar-head"><div><span class="eyebrow">EXPLORE THE DATA</span><h1>探索天氣</h1></div><button id="menu-close" class="icon-button mobile-only" type="button" aria-label="關閉選單">×</button></div>
+    <div class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜尋縣市或測站" aria-label="搜尋縣市或測站"></div>
+    <div class="side-label">地圖圖層</div>
+    <div class="layer-list" role="group" aria-label="選擇地圖圖層">
+      <button class="layer-button active" data-layer="temperature" type="button"><span class="layer-symbol temp">°</span><span><strong>測站氣溫</strong><small>最新實測 · 預設</small></span><span class="layer-arrow">↗</span></button>
+      <button class="layer-button" data-layer="humidity" type="button"><span class="layer-symbol humidity">◉</span><span><strong>相對濕度</strong><small>測站實測 · %</small></span><span class="layer-arrow">↗</span></button>
+      <button class="layer-button" data-layer="wind" type="button"><span class="layer-symbol wind">≋</span><span><strong>平均風速</strong><small>測站實測 · m/s</small></span><span class="layer-arrow">↗</span></button>
+      <button class="layer-button" data-layer="forecast" type="button"><span class="layer-symbol forecast">↗</span><span><strong>預報最高溫</strong><small>縣市預報 · °C</small></span><span class="layer-arrow">↗</span></button>
+      <button class="layer-button" data-layer="rain" type="button"><span class="layer-symbol rain">％</span><span><strong>降雨機率</strong><small>縣市預報 · %</small></span><span class="layer-arrow">↗</span></button>
+    </div>
+    <div class="side-label side-label-row"><span>縣市速覽</span><span id="city-count">—</span></div>
+    <div id="city-list" class="city-list"></div>
+    <div class="side-bottom"><button id="data-button" class="text-button" type="button">資料來源與爬蟲紀錄 <span>↗</span></button><span>中央氣象署開放資料 · Asia/Taipei</span></div>
+  </aside>
+
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+  <aside id="details" class="details panel" aria-label="詳細資料">
+    <div class="details-top"><span class="eyebrow" id="detail-kicker">WEATHER DETAILS</span><button id="detail-close" class="icon-button" type="button" aria-label="關閉詳細資料">×</button></div>
+    <div id="details-content"><div class="detail-empty">選取地圖上的測站或左側縣市，查看詳細天氣與預報。</div></div>
+  </aside>
+
+  <section class="map-head" aria-label="地圖資訊"><span class="map-eyebrow">LIVE MAP / TAIWAN</span><h2 id="map-title">最新測站氣溫</h2><p id="map-subtitle">以各測站實際座標顯示觀測資料</p></section>
+  <div class="bottom-dock panel">
+    <div class="dock-main"><div class="dock-icon">◷</div><div><strong id="dock-title">最新觀測</strong><small id="dock-time">讀取中…</small></div></div>
+    <div id="period-control" class="period-control" hidden><label for="period-select">預報時段</label><select id="period-select"></select></div>
+    <div class="dock-actions"><button id="zoom-home" type="button" title="回到全台">◎ 全台</button><button id="download" type="button" title="下載目前資料 CSV">↓ CSV</button><button id="refresh" type="button" title="重新讀取 JSON">↻ 重讀</button></div>
+  </div>
+  <div id="legend" class="legend panel"></div>
+
+  <dialog id="data-dialog" class="data-dialog"><form method="dialog"><button class="dialog-close icon-button" aria-label="關閉" type="submit">×</button></form><span class="eyebrow">DATA & CRAWLER</span><h2>資料來源與更新紀錄</h2><p>本頁讀取由 Python 定時抓取中央氣象署 API、寫入 SQLite 後匯出的 JSON。重新讀取只會載入已發布的快照。</p><div id="source-summary"></div><h3>最近爬蟲執行</h3><div id="crawl-log"></div><p class="dialog-note">測站資料是實際觀測；預報圖層是縣市代表點。資料時間以畫面標示為準。</p></dialog>
+</body>
+</html>

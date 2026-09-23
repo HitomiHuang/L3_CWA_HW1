@@ -11,6 +11,7 @@ from components.charts import build_rain_chart, build_snapshot_chart, build_temp
 from components.map_view import build_forecast_map
 from config import CITY_NAMES, DATABASE_PATH
 from database.repository import ForecastRepository
+from services.snapshot_export import export_snapshot
 from services.weather_service import WeatherService
 
 
@@ -158,6 +159,7 @@ def main() -> None:
                         completed.append(f"{label} {count} 筆")
                     except Exception as exc:
                         failures.append(f"{label}：{exc}")
+            export_snapshot(DATABASE_PATH, ROOT / "public" / "data" / "snapshot.json")
             st.session_state["refresh_message"] = "已更新：" + "；".join(completed) if completed else None
             st.session_state["refresh_errors"] = failures
             st.rerun()
@@ -166,6 +168,16 @@ def main() -> None:
         st.success(st.session_state["refresh_message"])
     if st.session_state.get("refresh_errors"):
         st.warning("部分資料更新失敗：" + "；".join(st.session_state["refresh_errors"]))
+
+    with st.expander("爬蟲執行紀錄（SQLite）"):
+        crawl_rows = repository.get_recent_crawl_runs()
+        if crawl_rows:
+            st.dataframe(pd.DataFrame(crawl_rows).rename(columns={
+                "dataset_id": "資料集", "started_at": "開始時間", "finished_at": "完成時間",
+                "status": "結果", "record_count": "筆數", "error_message": "錯誤訊息",
+            }), width="stretch", hide_index=True)
+        else:
+            st.caption("尚無抓取紀錄。")
 
     latest_run = repository.get_latest_run()
     if latest_run:
