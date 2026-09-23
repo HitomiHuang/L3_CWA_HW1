@@ -50,7 +50,17 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 2. 將 `.env.example` 複製為 `.env`。
 3. 在 `.env` 設定 `CWA_API_KEY=你的授權碼`。
 
-`.env` 已列入 `.gitignore`。不要把授權碼貼到程式、README、GitHub 或畫面中。部署時請使用部署平台的 Secrets。
+`.env` 已列入 `.gitignore`。不要把授權碼貼到程式、README、GitHub 或畫面中。
+
+### 部署到 Streamlit Community Cloud
+
+在 `share.streamlit.io` 的 App 設定中開啟 **Secrets**，貼上 TOML 格式（請換成自己的授權碼）：
+
+```toml
+CWA_API_KEY = "你的中央氣象署授權碼"
+```
+
+若 App 已建立，從工作區 App 的選單進入 **Settings → Secrets**；儲存後重新啟動 App。Key 名稱需為根層的 `CWA_API_KEY`，不要使用 `.env` 的未加引號格式。程式也接受分組寫法 `[cwa]` 下的 `api_key`。本機仍可沿用 `.env`，也可在未提交的 `.streamlit/secrets.toml` 使用相同 TOML 格式。
 
 ## 執行
 

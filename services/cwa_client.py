@@ -28,16 +28,31 @@ class CWAClient:
         try:
             import streamlit as st
 
-            return str(st.secrets.get("CWA_API_KEY", "")).strip()
+            secrets = st.secrets
+            value = secrets.get("CWA_API_KEY", "")
+            if value:
+                return str(value).strip()
+
+            # Also accept the common grouped TOML form: [cwa] api_key = "...".
+            for section_name in ("cwa", "CWA"):
+                section = secrets.get(section_name, {})
+                if hasattr(section, "get"):
+                    value = section.get("api_key", "") or section.get("CWA_API_KEY", "")
+                    if value:
+                        return str(value).strip()
         except Exception:
-            return ""
+            pass
+        return ""
 
     def fetch_36_hour_forecast(self) -> dict[str, Any]:
         return self.fetch_dataset(CWA_DATASET_ID)
 
     def fetch_dataset(self, dataset_id: str) -> dict[str, Any]:
         if not self.api_key:
-            raise CWAClientError("找不到 CWA_API_KEY。請複製 .env.example 為 .env，填入中央氣象署授權碼後再更新資料。")
+            raise CWAClientError(
+                '找不到 CWA_API_KEY。本機請在 .env 設定；部署至 Streamlit Community Cloud 時，'
+                '請在 App settings → Secrets 加入 CWA_API_KEY = "你的授權碼"。'
+            )
         try:
             response = requests.get(
                 CWA_API_URL.rsplit("/", 1)[0] + "/" + dataset_id,

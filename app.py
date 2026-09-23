@@ -193,7 +193,9 @@ def main() -> None:
         st.markdown("<div class='source-label'>預報資料 · Asia/Taipei</div>", unsafe_allow_html=True)
 
     if all_data.empty:
-        st.info("資料庫目前沒有預報。請在左側設定 `.env` 的 `CWA_API_KEY`，再按「更新預報資料」。")
+        st.info("資料庫目前沒有預報。設定 CWA_API_KEY 後，按上方「更新所有資料」載入資料。")
+        st.markdown("本機請填入 `.env`；Streamlit Community Cloud 請在 App settings → Secrets 貼上：")
+        st.code('CWA_API_KEY = "你的中央氣象署授權碼"', language="toml")
         st.markdown("API Key 申請方式與操作說明請參考專案內的 README。")
         return
 
