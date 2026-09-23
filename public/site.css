@@ -15,3 +15,114 @@
 @media(max-width:1120px){.map-head{right:348px}.map-head h2{font-size:25px}}
 @media(max-width:860px){.map-head{top:auto;bottom:90px;left:20px;right:20px}.details:not(:has(.detail-empty)){bottom:190px;max-height:34vh}}
 @media(max-width:550px){body:has(#period-control:not([hidden])) .map-head{bottom:126px}body:has(#period-control:not([hidden])) .details:not(:has(.detail-empty)){bottom:226px}}
+
+/* Map-first layout: one dark navigation surface, one contextual detail drawer. */
+.sidebar{
+  left:20px;top:20px;bottom:20px;width:252px;padding:15px 12px 14px;
+  color:#e7f1f6;background:rgba(14,32,49,.93);
+  border:1px solid rgba(197,225,239,.14);
+  box-shadow:0 20px 50px rgba(2,12,25,.38);backdrop-filter:blur(22px);
+}
+.sidebar-brand{display:flex;align-items:center;gap:10px;padding:2px 8px 16px;margin-bottom:15px;border-bottom:1px solid rgba(198,224,236,.14)}
+.sidebar-brand-icon{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:11px;background:#efaf4d;color:#fff;font-size:25px}
+.sidebar-brand strong{display:block;font-size:12px;letter-spacing:.02em}
+.sidebar-brand small{display:block;margin-top:3px;font-size:8px;letter-spacing:.13em;color:#90abbc}
+.sidebar-head{padding:0 8px 12px}
+.sidebar-head h1{font-size:18px;color:#f2f8fa}
+.sidebar .eyebrow,.sidebar .side-label{color:#91aabb}
+.sidebar .search-wrap{background:rgba(205,226,238,.1);color:#a9c2d0;margin-bottom:14px}
+.sidebar .search-wrap input{color:#f1f7f9}
+.sidebar .search-wrap input::placeholder{color:#9cb2bf}
+.sidebar .layer-button{color:#d7e5ed}
+.sidebar .layer-button:hover{background:rgba(205,226,238,.1)}
+.sidebar .layer-button.active{background:rgba(91,171,196,.2);color:#fff}
+.sidebar .layer-button small,.sidebar .layer-arrow{color:#8da9b8}
+.sidebar .city-item{color:#d9e8ef;border-color:rgba(192,221,235,.1)}
+.sidebar .city-item:hover,.sidebar .city-item.active{background:rgba(91,171,196,.18)}
+.sidebar .city-item strong{color:#afe0ef}
+.sidebar .city-item small{color:#94aebb}
+.sidebar .city-list{scrollbar-color:rgba(174,211,225,.38) transparent;scrollbar-width:thin}
+.sidebar .city-list::-webkit-scrollbar{width:6px}
+.sidebar .city-list::-webkit-scrollbar-thumb{background:rgba(174,211,225,.38);border-radius:6px}
+.sidebar .city-list::-webkit-scrollbar-track{background:transparent}
+.sidebar .side-bottom{border-color:rgba(192,221,235,.14)}
+.sidebar .side-bottom>span{color:#829dac}
+.sidebar .text-button{color:#b3deed}
+.mobile-brand{display:none}
+.topbar{top:22px;left:auto;right:20px;width:auto;height:auto}
+.top-status{background:rgba(14,32,49,.88);border:1px solid rgba(197,225,239,.12)}
+body:has(.details.open) .topbar{right:380px}
+.details{
+  top:20px;bottom:20px;right:20px;width:340px;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transform:translateX(calc(100% + 28px));
+  transition:transform .26s ease,opacity .22s ease,visibility .22s;
+}
+.details.open{opacity:1;visibility:visible;pointer-events:auto;transform:translateX(0)}
+.bottom-hud{
+  position:fixed;z-index:800;left:288px;right:20px;bottom:20px;
+  display:flex;flex-direction:column;gap:10px;pointer-events:none;
+}
+body:has(.details.open) .bottom-hud{right:380px}
+.bottom-hud .map-head{
+  position:static;top:auto;bottom:auto;left:auto;right:auto;
+  width:100%;max-width:520px;pointer-events:none;
+}
+.bottom-hud .map-head h2{font-size:29px}
+.bottom-dock{
+  position:static;left:auto;right:auto;bottom:auto;width:100%;
+  display:flex;flex-wrap:wrap;align-items:center;gap:9px;
+  min-height:0;padding:11px 14px;border-radius:16px;
+  color:#e8f2f6;background:rgba(14,32,49,.9);
+  border:1px solid rgba(197,225,239,.16);
+  box-shadow:0 17px 42px rgba(2,12,25,.34);
+  backdrop-filter:blur(20px);pointer-events:auto;
+}
+.dock-main{min-width:140px}
+.dock-icon{background:rgba(113,187,207,.16);color:#afe1ef}
+.dock-main small,.period-control label{color:#a5bdca}
+.period-control select{background:rgba(220,239,246,.1);border-color:rgba(197,225,239,.18);color:#f2f8fa}
+.period-control select option{color:#193448;background:#fff}
+.dock-actions button{background:rgba(196,226,238,.12);color:#d7edf5}
+.dock-actions button:hover{background:rgba(196,226,238,.22)}
+.bottom-dock .legend{
+  position:static;top:auto;bottom:auto;right:auto;
+  flex-basis:100%;width:100%;max-width:none;
+  padding:8px 1px 0;border-top:1px solid rgba(197,225,239,.14);
+  background:transparent;box-shadow:none;color:#a5bfcd;
+}
+.bottom-dock .legend-title{color:#dcebf2}
+@media(max-width:1120px){
+  .sidebar{width:236px}
+  .bottom-hud{left:272px}
+  .details{width:304px}
+  body:has(.details.open) .bottom-hud,body:has(.details.open) .topbar{right:344px}
+  .bottom-hud .map-head h2{font-size:25px}
+}
+@media(max-width:860px){
+  body.menu-open::before{content:"";position:fixed;inset:0;z-index:1000;background:rgba(3,13,25,.5)}
+  .topbar,body:has(.details.open) .topbar{top:12px;left:12px;right:12px;height:48px;display:flex;align-items:center}
+  .mobile-brand{display:flex;align-items:center;gap:8px;color:#f2f8fa;font-size:13px}
+  .mobile-brand span{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#efaf4d;font-size:21px}
+  .mobile-brand strong{white-space:nowrap}
+  .topbar>.icon-button{background:rgba(14,32,49,.9);border:1px solid rgba(197,225,239,.16);color:#e3f1f6}
+  .sidebar{top:12px;bottom:12px;left:12px;width:min(305px,calc(100vw - 24px))}
+  .sidebar .icon-button{background:rgba(203,227,239,.12);color:#e3f1f6}
+  .details{top:auto;bottom:210px;left:12px;right:12px;width:auto;max-height:34vh;min-height:0}
+  .details.open{transform:translateY(0)}
+  .details:not(.open){transform:translateY(calc(100% + 25px))}
+  .bottom-hud,body:has(.details.open) .bottom-hud{left:12px;right:12px;bottom:12px;gap:7px}
+  .bottom-hud .map-head h2{font-size:24px}
+  .bottom-dock{padding:9px 11px}
+  .bottom-dock .legend{font-size:9px}
+}
+@media(max-width:550px){
+  .top-status{display:none}
+  #menu-toggle{margin-left:auto}
+  .dock-actions #zoom-home{display:inline-block}
+  .dock-main{min-width:110px}
+  .dock-actions{order:1}
+  .period-control{order:2;flex-basis:100%}
+  .bottom-dock .legend{order:3}
+  body:has(#period-control:not([hidden])) .details.open{bottom:245px}
+}

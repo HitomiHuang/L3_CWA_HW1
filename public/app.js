@@ -169,19 +169,24 @@ function forecastDetails(city) {
 }
 function selectCity(city) {
   state.city = city; state.station = null;
-  if (state.map && state.data.coordinates[city]) state.map.flyTo(state.data.coordinates[city], isForecast() ? 8 : 9, { duration: .6 });
+  if (window.innerWidth > 860 && state.map && state.data.coordinates[city]) {
+    state.map.flyTo(state.data.coordinates[city], isForecast() ? 8 : 9, { duration: .6 });
+  }
   renderCities(); renderDetails();
-  $("sidebar").classList.remove("open");
+  closeMenu();
 }
 function selectStation(id) {
   const row = stationRows().find((item) => item.station_id === id);
   if (!row) return;
   state.station = id; state.city = row.county;
   renderCities(); renderDetails();
-  $("sidebar").classList.remove("open");
+  closeMenu();
 }
 function renderDetails() {
-  if (!state.city && !state.station) return;
+  if (!state.city && !state.station) {
+    $("details").classList.remove("open");
+    return;
+  }
   const city = state.city || "未知縣市";
   const all = stationRows().filter((row) => row.county === city).sort((a, b) => String(b.observed_at).localeCompare(String(a.observed_at)));
   const station = state.station ? all.find((row) => row.station_id === state.station) : null;
@@ -215,7 +220,19 @@ function renderDetails() {
     '<p class="detail-foot">測站觀測抓取：' + escapeHtml(fmtTime(state.data.observations.fetched_at, true)) +
     '<br>36 小時預報抓取：' + escapeHtml(fmtTime(state.data.forecast.fetched_at, true)) + '</p>';
   $("details-content").innerHTML = html;
+  $("details").classList.add("open");
   $("details-content").querySelectorAll("[data-station]").forEach((button) => button.addEventListener("click", () => selectStation(button.dataset.station)));
+}
+function closeMenu() {
+  $("sidebar").classList.remove("open");
+  document.body.classList.remove("menu-open");
+}
+function closeDetails() {
+  state.station = null;
+  state.city = null;
+  $("details").classList.remove("open");
+  $("details-content").innerHTML = '<div class="detail-empty">選取地圖上的測站或左側縣市，查看詳細天氣與預報。</div>';
+  if (state.data) renderCities();
 }
 function renderDataDialog() {
   $("source-summary").innerHTML = Object.entries(ids).map(([name, id]) => {
@@ -266,14 +283,13 @@ async function loadData() {
     const data = await response.json();
     if (!data || data.schema_version !== 1 || !data.observations || !Array.isArray(data.observations.rows)) throw new Error("資料快照格式錯誤");
     state.data = data;
-    if (!state.city && window.innerWidth > 860) state.city = counties().includes("臺北市") ? "臺北市" : counties()[0] || null;
     renderControls();
     if (!data.observations.count) showNotice("尚無測站資料。請先在本機執行 python scripts/fetch_once.py --all。");
   } catch (error) { showNotice(error.message + "；請先執行爬蟲並匯出 JSON。"); }
   finally { $("refresh").disabled = false; }
 }
 document.querySelectorAll(".layer-button").forEach((button) => button.addEventListener("click", () => {
-  state.layer = button.dataset.layer; state.station = null; if (state.data) renderControls(); $("sidebar").classList.remove("open");
+  state.layer = button.dataset.layer; state.station = null; if (state.data) renderControls(); closeMenu();
 }));
 $("search").addEventListener("input", (event) => { state.search = event.target.value.trim(); if (state.data) { renderCities(); renderMap(); } });
 $("period-select").addEventListener("change", (event) => { state.period = event.target.value; renderControls(); });
@@ -281,8 +297,8 @@ $("zoom-home").addEventListener("click", () => state.map?.flyTo([23.78, 120.96],
 $("download").addEventListener("click", downloadCsv);
 $("refresh").addEventListener("click", loadData);
 $("data-button").addEventListener("click", () => $("data-dialog").showModal());
-$("detail-close").addEventListener("click", () => { state.station = null; state.city = null; $("details-content").innerHTML = '<div class="detail-empty">選取地圖上的測站或左側縣市，查看詳細天氣與預報。</div>'; renderCities(); });
-$("menu-toggle").addEventListener("click", () => $("sidebar").classList.add("open"));
-$("menu-close").addEventListener("click", () => $("sidebar").classList.remove("open"));
+$("detail-close").addEventListener("click", closeDetails);
+$("menu-toggle").addEventListener("click", () => { closeDetails(); $("sidebar").classList.add("open"); document.body.classList.add("menu-open"); });
+$("menu-close").addEventListener("click", closeMenu);
 initMap();
 loadData();
