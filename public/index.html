@@ -7,9 +7,10 @@
   <title>台灣天氣觀測地圖｜CWA 資料儀表板</title>
   <link rel="preconnect" href="https://unpkg.com">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="/site.css?v=9">
+  <link rel="stylesheet" href="/site.css?v=12">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script defer src="/app.js?v=8"></script>
+  <script defer src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+  <script defer src="/app.js?v=9"></script>
 </head>
 <body>
   <div id="map" aria-label="台灣天氣地圖"></div>
@@ -31,6 +32,13 @@
       <button class="layer-button" data-layer="wind" type="button"><span class="layer-symbol wind">≋</span><span><strong>平均風速</strong><small>測站實測 · m/s</small></span><span class="layer-arrow">↗</span></button>
       <button class="layer-button" data-layer="forecast" type="button"><span class="layer-symbol forecast">↗</span><span><strong>預報最高溫</strong><small>縣市預報 · °C</small></span><span class="layer-arrow">↗</span></button>
       <button class="layer-button" data-layer="rain" type="button"><span class="layer-symbol rain">％</span><span><strong>降雨機率</strong><small>縣市預報 · %</small></span><span class="layer-arrow">↗</span></button>
+    </div>
+    <div class="basemap-control" role="group" aria-label="選擇地圖底圖">
+      <div class="side-label">地圖底圖</div>
+      <div class="basemap-options">
+        <button class="basemap-button active" data-basemap="dark" type="button" aria-pressed="true">深色色塊圖</button>
+        <button class="basemap-button" data-basemap="street" type="button" aria-pressed="false">街道圖</button>
+      </div>
     </div>
     <div class="side-label side-label-row"><span>縣市速覽</span><span id="city-count">—</span></div>
     <div id="city-list" class="city-list"></div>

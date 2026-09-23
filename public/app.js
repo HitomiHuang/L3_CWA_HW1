@@ -1,7 +1,7 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const state = { data: null, layer: "temperature", city: null, station: null, period: "", search: "", map: null, markerGroup: null };
+const state = { data: null, layer: "temperature", basemap: "dark", city: null, station: null, period: "", search: "", map: null, streetLayer: null, countyLayer: null, countyGeoJson: null, markerGroup: null };
 const labels = { temperature: "最新測站氣溫", humidity: "測站相對濕度", wind: "測站平均風速", forecast: "縣市預報最高溫", rain: "縣市降雨機率" };
 const ids = { forecast: "F-C0032-001", weekly: "F-D0047-091", observations: "O-A0001-001" };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -47,13 +47,69 @@ function renderLegend() {
 function initMap() {
   if (!window.L) { showNotice("地圖元件載入失敗，請檢查網路後重新整理。"); return; }
   state.map = L.map("map", { zoomControl: false, minZoom: 6, maxZoom: 12, preferCanvas: true }).setView([23.78, 120.96], 7);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  state.streetLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     subdomains: "abc", maxZoom: 12
-  }).addTo(state.map);
-  L.control.zoom({ position: "bottomleft" }).addTo(state.map);
+  });
+  L.control.zoom({ position: "topright" }).addTo(state.map);
   state.markerGroup = L.layerGroup().addTo(state.map);
   state.map.on("zoomend", renderMap);
+  loadCountyGeometry();
+}
+function normalizeCounty(name) { return String(name || "").replaceAll("臺", "台"); }
+function countyValues() {
+  const values = isForecast() ? activeForecastRows().map((row) => ({ name: row.location, value: row[currentField()] })) : countyStats();
+  return new Map(values.map((row) => [normalizeCounty(row.name), row.value]));
+}
+function renderCountyAreas() {
+  if (!state.map || !state.countyGeoJson) return;
+  if (state.countyLayer) state.map.removeLayer(state.countyLayer);
+  const values = state.data ? countyValues() : new Map();
+  const names = new Map(state.data ? counties().map((name) => [normalizeCounty(name), name]) : []);
+  state.countyLayer = L.geoJSON(state.countyGeoJson, {
+    attribution: '縣市界線：<a href="https://github.com/dkaoster/taiwan-atlas">taiwan-atlas</a>／內政部國土測繪中心',
+    style: (feature) => {
+      const county = normalizeCounty(feature.properties.COUNTYNAME);
+      const value = values.get(county);
+      return { color: county === normalizeCounty(state.city) ? "#eff8fb" : "#9bb9c9", weight: county === normalizeCounty(state.city) ? 2 : 1,
+        fillColor: value === undefined ? "#527387" : colorFor(value), fillOpacity: value === undefined ? .52 : .66, opacity: .65 };
+    },
+    onEachFeature: (feature, layer) => {
+      const name = names.get(normalizeCounty(feature.properties.COUNTYNAME));
+      if (name) layer.on("click", () => selectCity(name));
+    }
+  });
+  if (state.basemap === "dark") state.countyLayer.addTo(state.map);
+}
+async function loadCountyGeometry() {
+  try {
+    if (!window.topojson) throw new Error("地圖邊界元件未載入");
+    const response = await fetch("/data/counties-10t.json");
+    if (!response.ok) throw new Error("縣市界線讀取失敗");
+    const topology = await response.json();
+    state.countyGeoJson = topojson.feature(topology, topology.objects.counties);
+    renderCountyAreas();
+  } catch (error) {
+    setBasemap("street");
+    showNotice(error.message + "；已切換至街道圖。");
+  }
+}
+function setBasemap(basemap) {
+  state.basemap = basemap;
+  document.body.classList.toggle("dark-basemap", basemap === "dark");
+  document.querySelectorAll(".basemap-button").forEach((button) => {
+    const active = button.dataset.basemap === basemap;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (!state.map) return;
+  if (basemap === "street") {
+    if (state.countyLayer) state.map.removeLayer(state.countyLayer);
+    state.streetLayer.addTo(state.map);
+  } else {
+    state.map.removeLayer(state.streetLayer);
+    if (state.countyLayer) state.countyLayer.addTo(state.map);
+  }
 }
 function stationRows() { return rows("observations").filter(validStation); }
 function counties() {
@@ -172,14 +228,14 @@ function selectCity(city) {
   if (window.innerWidth > 860 && state.map && state.data.coordinates[city]) {
     state.map.flyTo(state.data.coordinates[city], isForecast() ? 8 : 9, { duration: .6 });
   }
-  renderCities(); renderDetails();
+  renderCities(); renderDetails(); if (state.basemap === "dark") renderCountyAreas();
   closeMenu();
 }
 function selectStation(id) {
   const row = stationRows().find((item) => item.station_id === id);
   if (!row) return;
   state.station = id; state.city = row.county;
-  renderCities(); renderDetails();
+  renderCities(); renderDetails(); if (state.basemap === "dark") renderCountyAreas();
   closeMenu();
 }
 function renderDetails() {
@@ -233,6 +289,7 @@ function closeDetails() {
   $("details").classList.remove("open");
   $("details-content").innerHTML = '<div class="detail-empty">選取地圖上的測站或左側縣市，查看詳細天氣與預報。</div>';
   if (state.data) renderCities();
+  if (state.basemap === "dark") renderCountyAreas();
 }
 function renderDataDialog() {
   $("source-summary").innerHTML = Object.entries(ids).map(([name, id]) => {
@@ -261,7 +318,7 @@ function renderControls() {
   $("freshness").textContent = age < 2 * 3600000 ? "資料抓取 " + fmtTime(source.fetched_at) :
     "快照時間 " + fmtTime(source.fetched_at) + (age > 12 * 3600000 ? " · 資料較舊" : "");
   document.querySelector(".status-dot").classList.toggle("stale", age > 12 * 3600000);
-  renderLegend(); renderCities(); renderMap(); renderDetails(); renderDataDialog();
+  renderLegend(); renderCities(); renderMap(); renderDetails(); renderDataDialog(); renderCountyAreas();
 }
 function csvValue(value) { return '"' + String(value ?? "").replace(/"/g, '""') + '"'; }
 function downloadCsv() {
@@ -291,6 +348,7 @@ async function loadData() {
 document.querySelectorAll(".layer-button").forEach((button) => button.addEventListener("click", () => {
   state.layer = button.dataset.layer; state.station = null; if (state.data) renderControls(); closeMenu();
 }));
+document.querySelectorAll(".basemap-button").forEach((button) => button.addEventListener("click", () => setBasemap(button.dataset.basemap)));
 $("search").addEventListener("input", (event) => { state.search = event.target.value.trim(); if (state.data) { renderCities(); renderMap(); } });
 $("period-select").addEventListener("change", (event) => { state.period = event.target.value; renderControls(); });
 $("zoom-home").addEventListener("click", () => state.map?.flyTo([23.78, 120.96], 7));
@@ -301,4 +359,5 @@ $("detail-close").addEventListener("click", closeDetails);
 $("menu-toggle").addEventListener("click", () => { closeDetails(); $("sidebar").classList.add("open"); document.body.classList.add("menu-open"); });
 $("menu-close").addEventListener("click", closeMenu);
 initMap();
+setBasemap("dark");
 loadData();
