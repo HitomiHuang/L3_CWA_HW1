@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -13,15 +14,27 @@ from services.weather_service import WeatherService
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Fetch CWA weather datasets into the local SQLite database.")
+    parser.add_argument("--all", action="store_true", help="also fetch one-week forecast and station observations")
+    args = parser.parse_args()
     repository = ForecastRepository(DATABASE_PATH)
     repository.initialize()
-    try:
-        run_id, count = WeatherService(repository).refresh()
-    except Exception as exc:
-        print(f"更新失敗：{exc}", file=sys.stderr)
-        return 1
-    print(f"已儲存預報批次 #{run_id}，共 {count} 筆資料。")
-    return 0
+    service = WeatherService(repository)
+    jobs = [("36 小時預報", service.refresh)]
+    if args.all:
+        jobs.extend([
+            ("一週預報", service.refresh_weekly_forecast),
+            ("測站觀測", service.refresh_observations),
+        ])
+    failures = 0
+    for label, refresh in jobs:
+        try:
+            run_id, count = refresh()
+            print(f"{label}：已儲存批次 #{run_id}，共 {count} 筆資料。")
+        except Exception as exc:
+            print(f"{label} 更新失敗：{exc}", file=sys.stderr)
+            failures += 1
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ from typing import Any
 
 import pandas as pd
 
-from config import TIMEZONE
+from services.parse_utils import number as _number, taipei_iso as _taipei_iso
 
 ELEMENTS = {"Wx", "MinT", "MaxT", "PoP", "CI"}
 
@@ -18,26 +18,6 @@ def _value_from_parameter(parameter: dict[str, Any] | None, element_name: str) -
     if element_name in {"MinT", "MaxT", "PoP"}:
         return value if value not in (None, "") else name
     return name if name not in (None, "") else value
-
-
-def _number(value: Any) -> float | None:
-    if value is None or str(value).strip() in {"", "-", "--", "NaN", "N/A"}:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _taipei_iso(value: Any) -> str | None:
-    parsed = pd.to_datetime(value, errors="coerce")
-    if pd.isna(parsed):
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.tz_localize(TIMEZONE)
-    else:
-        parsed = parsed.tz_convert(TIMEZONE)
-    return parsed.isoformat(timespec="seconds")
 
 
 def parse_36_hour_forecast(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], str | None, str | None]:

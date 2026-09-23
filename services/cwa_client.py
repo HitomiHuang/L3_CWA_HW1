@@ -10,7 +10,7 @@ truststore.inject_into_ssl()
 import requests
 from dotenv import load_dotenv
 
-from config import CWA_API_URL, REQUEST_TIMEOUT_SECONDS
+from config import CWA_API_URL, CWA_DATASET_ID, REQUEST_TIMEOUT_SECONDS
 
 
 class CWAClientError(RuntimeError):
@@ -33,11 +33,14 @@ class CWAClient:
             return ""
 
     def fetch_36_hour_forecast(self) -> dict[str, Any]:
+        return self.fetch_dataset(CWA_DATASET_ID)
+
+    def fetch_dataset(self, dataset_id: str) -> dict[str, Any]:
         if not self.api_key:
             raise CWAClientError("找不到 CWA_API_KEY。請複製 .env.example 為 .env，填入中央氣象署授權碼後再更新資料。")
         try:
             response = requests.get(
-                CWA_API_URL,
+                CWA_API_URL.rsplit("/", 1)[0] + "/" + dataset_id,
                 params={"Authorization": self.api_key, "format": "JSON"},
                 timeout=self.timeout,
             )
@@ -59,6 +62,6 @@ class CWAClient:
             message = str(message).replace(self.api_key, "[redacted]")
             raise CWAClientError(f"中央氣象署 API 回報失敗：{message}")
         records = payload.get("records")
-        if not isinstance(records, dict) or not records.get("location"):
-            raise CWAClientError("API 回傳成功，但找不到預報縣市資料；請稍後重試。")
+        if not isinstance(records, dict) or not records:
+            raise CWAClientError(f"API 回傳成功，但資料集 {dataset_id} 沒有資料；請稍後重試。")
         return payload

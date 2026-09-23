@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
 
-from components.charts import build_rain_chart, build_temperature_chart
+from components.charts import build_rain_chart, build_snapshot_chart, build_temperature_chart
 from components.map_view import build_forecast_map
 from config import CITY_NAMES, DATABASE_PATH
 from database.repository import ForecastRepository
@@ -73,6 +73,56 @@ def _render_data_table(city_data: pd.DataFrame) -> None:
     st.dataframe(display, width="stretch", hide_index=True)
 
 
+def _render_observation_card(observations: pd.DataFrame, city: str, fetched_at: object | None) -> None:
+    st.subheader(f"{city} 測站觀測")
+    if observations.empty or "county" not in observations:
+        st.info("尚無測站觀測資料。按側欄更新按鈕取得最新整點觀測。")
+        return
+    city_observations = observations[observations["county"] == city].sort_values("observed_at", ascending=False)
+    if city_observations.empty:
+        st.info(f"目前的觀測批次沒有 {city} 的有效測站資料。")
+        return
+    usable = city_observations[city_observations[["temperature", "relative_humidity", "wind_speed"]].notna().any(axis=1)]
+    observation = (usable if not usable.empty else city_observations).iloc[0]
+    top = st.columns(3)
+    top[0].metric("測站氣溫", "暫無資料" if pd.isna(observation["temperature"]) else f"{observation['temperature']:g} °C")
+    top[1].metric("相對濕度", "暫無資料" if pd.isna(observation["relative_humidity"]) else f"{observation['relative_humidity']:g}%")
+    top[2].metric("平均風速", "暫無資料" if pd.isna(observation["wind_speed"]) else f"{observation['wind_speed']:g} m/s")
+    observed_time = _format_time(observation["observed_at"], "%Y-%m-%d %H:%M:%S")
+    fetched_label = _format_time(fetched_at, "%Y-%m-%d %H:%M:%S") if fetched_at else "未記錄"
+    st.caption(f"測站觀測（非縣市預報）｜{_safe(observation['station_name'])}・{_safe(observation['town'], '所在鄉鎮未提供')}｜觀測時間 {observed_time}｜取得時間 {fetched_label}")
+    observed_at = pd.to_datetime(observation["observed_at"], errors="coerce", utc=True)
+    if not pd.isna(observed_at) and pd.Timestamp.now(tz="UTC") - observed_at > pd.Timedelta(hours=2):
+        st.warning("此測站讀值超過 2 小時，請以標示的觀測時間判斷資料新舊。")
+    if pd.notna(observation["weather"]):
+        st.write(f"觀測天氣現象：{_safe(observation['weather'])}")
+
+
+def _render_rankings(all_data: pd.DataFrame) -> None:
+    with st.expander("全台同時段預報排行"):
+        periods = sorted(set(zip(all_data["start_time"].astype(str), all_data["end_time"].astype(str))))
+        if not periods:
+            st.info("目前沒有可比較的預報時段。")
+            return
+        chosen = st.selectbox(
+            "排行預報有效期間",
+            periods,
+            format_func=lambda pair: f"{_format_time(pair[0])} – {_format_time(pair[1])}",
+            key="ranking_period",
+        )
+        same_period = all_data[(all_data["start_time"].astype(str) == chosen[0]) & (all_data["end_time"].astype(str) == chosen[1])]
+        high, rain = st.columns(2, gap="large")
+        with high:
+            st.markdown("**預報最高溫 Top 5**")
+            ranking = same_period.dropna(subset=["max_temp"]).nlargest(5, "max_temp")[["location", "max_temp"]].rename(columns={"location": "縣市", "max_temp": "最高溫 (°C)"})
+            st.dataframe(ranking, width="stretch", hide_index=True)
+        with rain:
+            st.markdown("**降雨機率 Top 5**")
+            ranking = same_period.dropna(subset=["pop"]).nlargest(5, "pop")[["location", "pop"]].rename(columns={"location": "縣市", "pop": "降雨機率 (%)"})
+            st.dataframe(ranking, width="stretch", hide_index=True)
+        st.caption("排行只比較最新成功批次中，預報有效起訖時間完全相同的縣市資料。")
+
+
 def main() -> None:
     st.set_page_config(page_title="台灣天氣預報", page_icon="🌦️", layout="wide")
     _load_css()
@@ -84,9 +134,9 @@ def main() -> None:
     st.markdown(
         """
         <div class="weather-header">
-            <div class="eyebrow">TAIWAN WEATHER · 36-HOUR FORECAST</div>
+            <div class="eyebrow">TAIWAN WEATHER · FORECAST & OBSERVATIONS</div>
             <h1>台灣天氣預報</h1>
-            <p>掌握各縣市未來時段的天氣、溫度與降雨機率。</p>
+            <p>整合短期與一週預報、測站觀測和全台同時段排行。</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -94,22 +144,29 @@ def main() -> None:
 
     with st.sidebar:
         st.markdown("### 資料控制")
-        st.caption("資料來源：中央氣象署 F-C0032-001")
-        if st.button("⟳　更新預報資料", type="primary", use_container_width=True):
-            with st.spinner("正在向中央氣象署取得最新預報…"):
-                try:
-                    _, count = service.refresh()
-                    st.session_state["refresh_message"] = f"已更新 {count} 筆預報資料。"
-                    st.session_state["refresh_error"] = None
-                except Exception as exc:  # Keep the existing saved forecast available on API errors.
-                    st.session_state["refresh_error"] = str(exc)
-                    st.session_state["refresh_message"] = None
+        st.caption("中央氣象署：36 小時預報、一週預報、整點測站觀測")
+        if st.button("⟳　更新所有資料", type="primary", width="stretch"):
+            completed, failures = [], []
+            refresh_jobs = [
+                ("36 小時預報", service.refresh),
+                ("一週預報", service.refresh_weekly_forecast),
+                ("測站觀測", service.refresh_observations),
+            ]
+            with st.spinner("正在更新預報與測站資料…"):
+                for label, refresh in refresh_jobs:
+                    try:
+                        _, count = refresh()
+                        completed.append(f"{label} {count} 筆")
+                    except Exception as exc:
+                        failures.append(f"{label}：{exc}")
+            st.session_state["refresh_message"] = "已更新：" + "；".join(completed) if completed else None
+            st.session_state["refresh_errors"] = failures
             st.rerun()
 
         if st.session_state.get("refresh_message"):
             st.success(st.session_state["refresh_message"])
-        if st.session_state.get("refresh_error"):
-            st.error(st.session_state["refresh_error"])
+        if st.session_state.get("refresh_errors"):
+            st.warning("部分資料更新失敗：" + "；".join(st.session_state["refresh_errors"]))
 
     latest_run = repository.get_latest_run()
     if latest_run:
@@ -120,6 +177,15 @@ def main() -> None:
         all_data = pd.DataFrame(columns=["location", "start_time", "end_time", "wx", "weather_code", "min_temp", "max_temp", "pop", "comfort", "fetched_at"])
         updated = "尚無資料"
         issue_time = None
+
+    weekly_run = repository.get_latest_weekly_run()
+    weekly_data = repository.get_weekly_periods(int(weekly_run["id"])) if weekly_run else pd.DataFrame(
+        columns=["location", "start_time", "end_time", "wx", "description", "min_temp", "max_temp", "pop", "relative_humidity", "fetched_at"]
+    )
+    observation_run = repository.get_latest_observation_run()
+    observations = repository.get_observations(int(observation_run["id"])) if observation_run else pd.DataFrame(
+        columns=["station_id", "station_name", "county", "town", "observed_at", "latitude", "longitude", "weather", "temperature", "relative_humidity", "wind_speed"]
+    )
 
     top_left, top_right = st.columns([3, 1])
     with top_left:
@@ -182,6 +248,8 @@ def main() -> None:
         st_folium(forecast_map, height=450, use_container_width=True, returned_objects=[])
         st.caption(f"各點皆為同一預報時段（{start_label}–{end_label}）的縣市代表點；圖例依預報最高溫分類。")
 
+    _render_observation_card(observations, selected_city, observation_run.get("fetched_at") if observation_run else None)
+
     _weather_period_cards(city_data)
 
     st.subheader("溫度與降雨趨勢")
@@ -194,6 +262,39 @@ def main() -> None:
     st.subheader(f"{selected_city} 預報資料表")
     st.caption("以下資料由 SQLite 最新成功批次查詢；有效期間為預報時段，不是資料抓取時間。")
     _render_data_table(city_data)
+
+    with st.expander("未來一週預報（12 小時區間）"):
+        weekly_city = weekly_data[weekly_data["location"] == selected_city].sort_values("start_time").reset_index(drop=True)
+        if weekly_city.empty:
+            st.info("目前沒有一週預報資料。按側欄「更新所有資料」取得 F-D0047-091。")
+        else:
+            weekly_fetched = _format_time(weekly_run["fetched_at"], "%Y-%m-%d %H:%M:%S")
+            st.caption(f"資料集 F-D0047-091｜資料取得時間 {weekly_fetched}｜每筆為 12 小時預報有效期間。")
+            weekly_chart_left, weekly_chart_right = st.columns(2, gap="large")
+            with weekly_chart_left:
+                st.plotly_chart(build_temperature_chart(weekly_city, "未來一週溫度"), width="stretch")
+            with weekly_chart_right:
+                st.plotly_chart(build_rain_chart(weekly_city, "未來一週 12 小時降雨機率"), width="stretch")
+            weekly_display = weekly_city[["start_time", "end_time", "wx", "min_temp", "max_temp", "pop", "relative_humidity", "description"]].copy()
+            weekly_display.columns = ["開始時間", "結束時間", "天氣現象", "最低溫 (°C)", "最高溫 (°C)", "12 小時降雨機率 (%)", "平均相對濕度 (%)", "預報描述"]
+            for column in ("開始時間", "結束時間"):
+                weekly_display[column] = pd.to_datetime(weekly_display[column], errors="coerce").dt.strftime("%Y-%m-%d %H:%M")
+            st.dataframe(weekly_display, width="stretch", hide_index=True)
+
+    _render_rankings(all_data)
+
+    with st.expander("同一時段的歷次預報版本比較"):
+        snapshot_history = repository.get_snapshot_history(selected_city, str(first["start_time"]), str(first["end_time"]))
+        st.caption(f"比較 {selected_city} 在同一有效期間（{start_label}–{end_label}）的不同抓取版本；這是預報修訂紀錄，不是歷史實測氣溫。")
+        if snapshot_history.empty:
+            st.info("尚無可比較的預報快照。")
+        else:
+            st.plotly_chart(build_snapshot_chart(snapshot_history), width="stretch")
+            snapshot_display = snapshot_history.copy()
+            snapshot_display["fetched_at"] = pd.to_datetime(snapshot_display["fetched_at"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
+            snapshot_display = snapshot_display[["run_id", "fetched_at", "wx", "min_temp", "max_temp", "pop"]]
+            snapshot_display.columns = ["批次", "資料取得時間", "天氣現象", "最低溫 (°C)", "最高溫 (°C)", "降雨機率 (%)"]
+            st.dataframe(snapshot_display, width="stretch", hide_index=True)
 
     with st.expander("歷次預報批次"):
         recent_runs = repository.get_recent_runs()

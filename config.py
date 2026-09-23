@@ -4,6 +4,8 @@ ROOT_DIR = Path(__file__).resolve().parent
 DATABASE_PATH = ROOT_DIR / "database" / "weather.db"
 CWA_DATASET_ID = "F-C0032-001"
 CWA_API_URL = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/{CWA_DATASET_ID}"
+WEEKLY_DATASET_ID = "F-D0047-091"
+OBSERVATION_DATASET_ID = "O-A0001-001"
 TIMEZONE = "Asia/Taipei"
 REQUEST_TIMEOUT_SECONDS = 20
 
