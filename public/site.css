@@ -101,6 +101,7 @@ body:has(.details.open) .bottom-hud{right:380px}
 .basemap-button.active{background:#89c6d7;color:#15394d;box-shadow:0 3px 10px rgba(5,23,35,.2)}
 .dark-basemap #map,.dark-basemap .leaflet-container{background:#172635!important}
 .dark-basemap .map-shade{background:linear-gradient(90deg,rgba(8,20,33,.16),transparent 35%,transparent 70%,rgba(8,20,33,.08))}
+.leaflet-tile-pane .leaflet-tile{filter:invert(.78) hue-rotate(180deg) saturate(.6) brightness(.98) contrast(.9)}
 .leaflet-top.leaflet-right{top:82px;right:20px}
 body:has(.details.open) .leaflet-top.leaflet-right{right:380px}
 @media(max-width:1120px){
