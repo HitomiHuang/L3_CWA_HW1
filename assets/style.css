@@ -3,6 +3,11 @@
     color: #1E293B;
 }
 
+.stAppViewContainer .main .block-container {
+    padding-top: 1.25rem;
+    padding-bottom: 2rem;
+}
+
 .weather-header {
     padding: 1.25rem 0 0.55rem;
 }
@@ -55,8 +60,46 @@
 .period-temp { color: #334155; font-size: 1.38rem; font-weight: 700; margin-top: 0.45rem; }
 .period-temp span { color: #94A3B8; font-size: 1rem; font-weight: 400; }
 
+.map-period-label {
+    color: #64748B;
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+div[data-testid="stRadio"] > label {
+    color: #475569;
+    font-size: 0.84rem;
+    font-weight: 650;
+}
+
+div[data-testid="stRadio"] div[role="radiogroup"] {
+    gap: 0.35rem;
+}
+
+div[data-testid="stRadio"] div[role="radiogroup"] label {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+}
+
+div[data-testid="stRadio"] div[role="radiogroup"] label:has(input:checked) {
+    background: #EAF3FF;
+    border-color: #93C5FD;
+    color: #1D4ED8;
+}
+
+div[data-testid="stMetric"] {
+    background: #FFFFFF;
+    border: 1px solid #E8EDF4;
+    border-radius: 14px;
+    padding: 0.8rem 1rem;
+}
+
 @media (max-width: 700px) {
     .source-label { text-align: left; }
     .hero-card { min-height: 205px; padding: 1.25rem; }
     .period-card { min-height: 135px; }
+    .map-period-label { display: block; margin-top: 0.25rem; }
 }
