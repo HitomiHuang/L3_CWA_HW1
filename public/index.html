@@ -7,50 +7,56 @@
   <title>台灣天氣觀測地圖｜CWA 資料儀表板</title>
   <link rel="preconnect" href="https://unpkg.com">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="/site.css?v=14">
+  <link rel="stylesheet" href="/site.css?v=25">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script defer src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script defer src="/app.js?v=10"></script>
+  <script defer src="/app.js?v=23"></script>
 </head>
 <body>
   <div id="map" aria-label="台灣天氣地圖"></div>
   <div class="map-shade" aria-hidden="true"></div>
   <header class="topbar">
-    <div class="mobile-brand"><span>✳</span><strong>台灣天氣觀測地圖</strong></div>
+    <div class="mobile-brand"><span>✳</span><strong>台灣天氣地圖</strong></div>
     <div class="top-status"><span class="status-dot"></span><span id="freshness">正在讀取資料…</span></div>
     <button id="menu-toggle" class="icon-button mobile-only" type="button" aria-label="開啟選單">☰</button>
   </header>
 
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand"><span class="sidebar-brand-icon">✳</span><div><strong>台灣天氣觀測地圖</strong><small>TAIWAN WEATHER ATLAS</small></div></div>
-    <div class="sidebar-head"><div><span class="eyebrow">EXPLORE THE DATA</span><h1>探索天氣</h1></div><button id="menu-close" class="icon-button mobile-only" type="button" aria-label="關閉選單">×</button></div>
+    <div class="sidebar-brand"><span class="sidebar-brand-icon">✳</span><div><strong>台灣天氣地圖</strong><small>觀測與預報一站查詢</small></div><button id="menu-close" class="icon-button mobile-only" type="button" aria-label="關閉選單">×</button></div>
+    <div class="sidebar-head"><h1>探索天氣</h1><p>選擇圖層，查看各地天氣。</p></div>
     <div class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜尋縣市或測站" aria-label="搜尋縣市或測站"></div>
-    <div id="favorite-wrap" class="favorite-wrap" hidden><div class="side-label">收藏縣市</div><div id="favorite-list" class="favorite-list"></div></div>
     <div id="typhoon-card" class="typhoon-card" hidden></div>
-    <div class="side-label">地圖圖層</div>
+    <div class="side-label">地圖資料</div>
     <div class="layer-list" role="group" aria-label="選擇地圖圖層">
-      <button class="layer-button active" data-layer="temperature" type="button"><span class="layer-symbol temp">°</span><span><strong>測站氣溫</strong><small>最新實測 · 預設</small></span><span class="layer-arrow">↗</span></button>
-      <button class="layer-button" data-layer="humidity" type="button"><span class="layer-symbol humidity">◉</span><span><strong>相對濕度</strong><small>測站實測 · %</small></span><span class="layer-arrow">↗</span></button>
-      <button class="layer-button" data-layer="wind" type="button"><span class="layer-symbol wind">≋</span><span><strong>平均風速</strong><small>測站實測 · m/s</small></span><span class="layer-arrow">↗</span></button>
-      <button class="layer-button" data-layer="forecast" type="button"><span class="layer-symbol forecast">↗</span><span><strong>預報最高溫</strong><small>縣市預報 · °C</small></span><span class="layer-arrow">↗</span></button>
-      <button class="layer-button" data-layer="rain" type="button"><span class="layer-symbol rain">％</span><span><strong>降雨機率</strong><small>縣市預報 · %</small></span><span class="layer-arrow">↗</span></button>
+      <button class="layer-button active" data-layer="temperature" type="button" aria-pressed="true"><span class="layer-symbol temp">°</span><span><strong>測站氣溫</strong><small>最新實測</small></span></button>
+      <button class="layer-button" data-layer="humidity" type="button" aria-pressed="false"><span class="layer-symbol humidity">◉</span><span><strong>相對濕度</strong><small>測站實測</small></span></button>
+      <button class="layer-button" data-layer="wind" type="button" aria-pressed="false"><span class="layer-symbol wind">≋</span><span><strong>平均風速</strong><small>測站實測</small></span></button>
+      <button class="layer-button" data-layer="forecast" type="button" aria-pressed="false"><span class="layer-symbol forecast">↗</span><span><strong>預報最高溫</strong><small>縣市預報</small></span></button>
+      <button class="layer-button" data-layer="rain" type="button" aria-pressed="false"><span class="layer-symbol rain">％</span><span><strong>降雨機率</strong><small>縣市預報</small></span></button>
     </div>
-    <div class="basemap-control" role="group" aria-label="選擇地圖底圖">
-      <div class="side-label">地圖底圖</div>
-      <div class="basemap-options">
-        <button class="basemap-button active" data-basemap="dark" type="button" aria-pressed="true">縣市氣象圖</button>
-        <button class="basemap-button" data-basemap="street" type="button" aria-pressed="false">街道圖</button>
+    <section id="city-browser" class="sidebar-disclosure">
+      <button id="city-toggle" class="disclosure-toggle" type="button" aria-expanded="false" aria-controls="city-browser-content"><span>縣市一覽</span><span class="summary-meta" id="city-count">—</span><span class="summary-chevron" aria-hidden="true">⌄</span></button>
+      <div id="city-browser-content" class="city-browser-content" hidden>
+        <div id="favorite-wrap" class="favorite-wrap" hidden><div class="side-label">常看縣市</div><div id="favorite-list" class="favorite-list"></div></div>
+        <div id="city-list" class="city-list"></div>
       </div>
-    </div>
-    <div class="side-label side-label-row"><span>縣市速覽</span><span id="city-count">—</span></div>
-    <div id="city-list" class="city-list"></div>
-    <div class="side-bottom"><button id="data-button" class="text-button" type="button">資料來源與爬蟲紀錄 <span>↗</span></button><span>中央氣象署開放資料 · Asia/Taipei</span></div>
+    </section>
+    <details class="sidebar-disclosure map-options">
+      <summary><span>地圖設定</span><span class="summary-chevron" aria-hidden="true">⌄</span></summary>
+      <div class="basemap-control" role="group" aria-label="選擇地圖底圖">
+        <div class="basemap-options">
+          <button class="basemap-button active" data-basemap="dark" type="button" aria-pressed="true">縣市氣象圖</button>
+          <button class="basemap-button" data-basemap="street" type="button" aria-pressed="false">街道圖</button>
+        </div>
+      </div>
+    </details>
+    <div class="side-bottom"><button id="data-button" class="text-button" type="button">資料來源與更新紀錄 <span>↗</span></button><span>資料來源：中央氣象署</span></div>
   </aside>
 
   <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 
   <section id="overview" class="overview panel" aria-label="縣市天氣總覽" hidden>
-    <div class="overview-head"><div><span class="eyebrow">COUNTY WEATHER</span><h2 id="overview-city">—</h2></div><div class="overview-actions"><button id="favorite-toggle" type="button" aria-label="收藏縣市" title="收藏縣市">☆</button><button id="share-view" type="button" title="分享目前畫面">分享</button></div></div>
+    <div class="overview-head"><div><span class="eyebrow">縣市概況</span><h2 id="overview-city">—</h2></div><div class="overview-actions"><button id="favorite-toggle" type="button" aria-label="收藏縣市" title="收藏縣市">☆</button><button id="share-view" type="button" title="分享目前畫面">分享</button><button id="overview-close" type="button" aria-label="關閉縣市概況" title="關閉">×</button></div></div>
     <div id="overview-content"></div>
     <button id="overview-details" class="overview-details" type="button">查看測站與完整預報 ↗</button>
   </section>
@@ -61,13 +67,17 @@
   </aside>
 
   <div class="bottom-hud">
-    <section class="map-head" aria-label="地圖資訊"><span class="map-eyebrow">LIVE MAP / TAIWAN</span><h2 id="map-title">最新測站氣溫</h2><p id="map-subtitle">以各測站實際座標顯示觀測資料</p></section>
+    <section class="map-head" aria-label="地圖資訊"><span class="map-eyebrow">台灣天氣地圖</span><h2 id="map-title">最新測站氣溫</h2><p id="map-subtitle">點選縣市查看天氣概況</p></section>
     <div class="bottom-dock">
       <div class="dock-main"><div class="dock-icon">◷</div><div><strong id="dock-title">最新觀測</strong><small id="dock-time">讀取中…</small></div></div>
       <div id="period-control" class="period-control" hidden><label for="period-select">預報時段</label><select id="period-select"></select></div>
-      <div class="dock-actions"><button id="locate" type="button" title="尋找最近測站">⌖ 我的位置</button><button id="zoom-home" type="button" title="回到全台">◎ 全台</button><button id="download" type="button" title="下載目前資料 CSV">↓ CSV</button><button id="refresh" type="button" title="重新讀取 JSON">↻ 重讀</button></div>
-      <div id="timeline-control" class="timeline-control" hidden><label for="period-range">預報時間軸</label><input id="period-range" type="range" min="0" max="2" value="0" step="1"><span id="timeline-label">—</span></div>
+      <div class="dock-actions"><button id="locate" type="button" title="尋找最近測站">⌖ 我的位置</button><button id="zoom-home" type="button" title="回到全台">◎ 全台</button><details class="dock-more"><summary>更多 <span aria-hidden="true">⌄</span></summary><div class="more-menu"><button id="download" type="button" title="下載目前資料 CSV">↓ 下載 CSV</button><button id="refresh" type="button" title="重新讀取 JSON">↻ 重新讀取</button></div></details></div>
       <div id="legend" class="legend"></div>
+      <div id="timeline-control" class="timeline-control" hidden>
+        <label for="period-range">預報時間軸</label><output id="timeline-label" for="period-range">—</output>
+        <input id="period-range" type="range" min="0" max="2" value="0" step="1">
+        <div class="timeline-ends"><span id="timeline-start">—</span><span id="timeline-end">—</span></div>
+      </div>
     </div>
   </div>
 

@@ -4,9 +4,10 @@ const $ = (id) => document.getElementById(id);
 const query = new URLSearchParams(location.search);
 const allowedLayers = new Set(["temperature", "humidity", "wind", "forecast", "rain"]);
 const state = { data: null, layer: allowedLayers.has(query.get("layer")) ? query.get("layer") : "temperature", basemap: "dark",
+  forecastLayer: ["forecast", "rain"].includes(query.get("layer")) ? query.get("layer") : "forecast",
   city: query.get("city"), station: null, detailsOpen: false, period: query.get("period") || "", search: "",
   map: null, streetLayer: null, countyLayer: null, countyGeoJson: null, markerGroup: null,
-  typhoonGroup: null, typhoonVisible: false, favorites: readFavorites() };
+  typhoonGroup: null, typhoonNodes: [], typhoonVisible: false, favorites: readFavorites() };
 const labels = { temperature: "最新測站氣溫", humidity: "測站相對濕度", wind: "測站平均風速", forecast: "縣市預報最高溫", rain: "縣市降雨機率" };
 const ids = { forecast: "F-C0032-001", weekly: "F-D0047-091", observations: "O-A0001-001", typhoons: "W-C0034-005" };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -34,6 +35,11 @@ function renderFavorites() {
     '<button type="button" data-favorite="' + escapeHtml(city) + '">' + escapeHtml(city) + '</button>').join("");
   $("favorite-list").querySelectorAll("[data-favorite]").forEach((button) =>
     button.addEventListener("click", () => selectCity(button.dataset.favorite)));
+}
+function setCityBrowserOpen(open) {
+  $("city-browser").classList.toggle("open", open);
+  $("city-browser-content").hidden = !open;
+  $("city-toggle").setAttribute("aria-expanded", String(open));
 }
 function toggleFavorite() {
   if (!state.city) return;
@@ -75,12 +81,18 @@ function legendItems() {
   return [["<20", "#5590bf"], ["20–24", "#77b4c1"], ["25–29", "#e9bb69"], ["30–34", "#ec9557"], ["≥35", "#d86953"]];
 }
 function renderLegend() {
+  if (state.typhoonVisible) {
+    $("legend").innerHTML = '<span class="legend-item"><i class="legend-route observed"></i>分析路徑</span>' +
+      '<span class="legend-item"><i class="legend-route predicted"></i>預報路徑</span>' +
+      '<span class="legend-item">圖示大小＝最大風速，非暴風圈範圍</span>';
+    return;
+  }
   $("legend").innerHTML = '<span class="legend-title">' + escapeHtml(currentUnit()) + '</span>' +
     legendItems().map(([text, color]) => '<span class="legend-item"><i class="legend-dot" style="background:' + color + '"></i>' + escapeHtml(text) + '</span>').join("");
 }
 function initMap() {
   if (!window.L) { showNotice("地圖元件載入失敗，請檢查網路後重新整理。"); return; }
-  state.map = L.map("map", { zoomControl: false, minZoom: 6, maxZoom: 12, preferCanvas: true }).setView([23.78, 120.96], 7);
+  state.map = L.map("map", { zoomControl: false, minZoom: 4, maxZoom: 12, preferCanvas: true }).setView([23.78, 120.96], 8);
   state.streetLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     subdomains: "abc", maxZoom: 12
@@ -89,6 +101,7 @@ function initMap() {
   state.markerGroup = L.layerGroup().addTo(state.map);
   state.typhoonGroup = L.layerGroup().addTo(state.map);
   state.map.on("zoomend", renderMap);
+  state.map.on("moveend zoomend", layoutTyphoonLabels);
   loadCountyGeometry();
 }
 function normalizeCounty(name) { return String(name || "").replaceAll("臺", "台"); }
@@ -105,13 +118,21 @@ function renderCountyAreas() {
     attribution: '縣市界線：<a href="https://github.com/dkaoster/taiwan-atlas">taiwan-atlas</a>／內政部國土測繪中心',
     style: (feature) => {
       const county = normalizeCounty(feature.properties.COUNTYNAME);
+      if (state.typhoonVisible) return { color: "#7996a5", weight: 1, fillColor: "#527387", fillOpacity: .18, opacity: .55 };
       const value = values.get(county);
       return { color: county === normalizeCounty(state.city) ? "#eff8fb" : "#9bb9c9", weight: county === normalizeCounty(state.city) ? 2 : 1,
         fillColor: value === undefined ? "#527387" : colorFor(value), fillOpacity: value === undefined ? .52 : .66, opacity: .65 };
     },
     onEachFeature: (feature, layer) => {
       const name = names.get(normalizeCounty(feature.properties.COUNTYNAME));
-      if (name) layer.on("click", () => selectCity(name));
+      if (name) {
+        layer.bindTooltip(() => {
+          const value = values.get(normalizeCounty(name));
+          return '<strong>' + escapeHtml(name) + '</strong>' +
+            (state.typhoonVisible ? '' : '<span>' + escapeHtml(fmtNum(value, currentUnit())) + '</span>');
+        }, { className: "county-tooltip", direction: "top", sticky: true });
+        layer.on("click", () => selectCity(name));
+      }
     }
   });
   if (state.basemap === "dark") state.countyLayer.addTo(state.map);
@@ -145,6 +166,7 @@ function setBasemap(basemap) {
     state.map.removeLayer(state.streetLayer);
     if (state.countyLayer) state.countyLayer.addTo(state.map);
   }
+  renderMap();
 }
 function stationRows() { return rows("observations").filter(validStation); }
 function counties() {
@@ -171,7 +193,7 @@ function activeForecastRows() {
 }
 function renderOverview() {
   const city = state.city;
-  $("overview").hidden = !city || !state.data;
+  $("overview").hidden = !city || !state.data || state.detailsOpen || state.typhoonVisible;
   if (!city || !state.data) return;
   const stations = stationRows().filter((row) => row.county === city);
   const temps = stations.map((row) => num(row.temperature)).filter((value) => value !== null);
@@ -198,35 +220,137 @@ function activeTyphoons() {
   if (!data || !data.fetched_at || Date.now() - new Date(data.fetched_at).getTime() > 18 * 3600000) return [];
   return rows("typhoons").filter((row) => row.latest_at &&
     Date.now() - new Date(row.latest_at).getTime() < 24 * 3600000 &&
-    Array.isArray(row.observed) && row.observed.length);
+    Array.isArray(row.observed) && row.observed.length && typhoonTrack(row).length);
+}
+function typhoonTrack(cyclone) {
+  const valid = (point) => point && Number.isFinite(num(point.latitude)) && Number.isFinite(num(point.longitude)) &&
+    Number.isFinite(new Date(point.time).getTime());
+  return [...cyclone.observed.filter(valid).map((point) => ({ ...point, forecast: false })),
+    ...(Array.isArray(cyclone.forecast) ? cyclone.forecast : []).filter(valid)
+      .map((point) => ({ ...point, forecast: true }))]
+    .sort((a, b) => new Date(a.time) - new Date(b.time));
+}
+function typhoonIcon(point, position) {
+  const wind = num(point.wind_speed);
+  const size = wind === null ? 23 : Math.max(18, Math.min(34, Math.round(12 + wind * .55)));
+  const html = '<div class="typhoon-node ' + position + (point.forecast ? ' is-forecast' : '') + '" style="--typhoon-size:' + size + 'px">' +
+    '<svg viewBox="0 0 64 64" aria-hidden="true"><circle class="typhoon-halo" cx="32" cy="32" r="28"/>' +
+    '<path class="typhoon-band" d="M31 8 C44 8 54 18 54 31 C48 24 41 22 35 26 C32 28 30 31 29 34 C24 28 22 19 26 12 C27 10 29 8 31 8 Z"/>' +
+    '<path class="typhoon-band" d="M33 56 C20 56 10 46 10 33 C16 40 23 42 29 38 C32 36 34 33 35 30 C40 36 42 45 38 52 C37 54 35 56 33 56 Z"/>' +
+    '<circle class="typhoon-eye" cx="32" cy="32" r="4"/></svg>' +
+    '<span class="typhoon-node-leader" aria-hidden="true"></span>' +
+    '<span class="typhoon-node-time">' + escapeHtml(fmtTime(point.time)) + '</span></div>';
+  return L.divIcon({ className: "typhoon-map-icon", html, iconSize: [size, size], iconAnchor: [size / 2, size / 2], popupAnchor: [0, -size / 2] });
+}
+function typhoonPopup(cyclone, point) {
+  return '<strong>' + escapeHtml(cyclone.name) + '</strong><br>' +
+    escapeHtml((point.forecast ? '預報位置 · ' : '分析位置 · ') + fmtTime(point.time, true)) +
+    '<br>最大風速：' + escapeHtml(fmtNum(point.wind_speed, ' m/s'));
+}
+function layoutTyphoonLabels() {
+  if (!state.typhoonVisible || !state.map || !state.typhoonNodes.length) return;
+  const width = state.map.getSize().x;
+  const height = state.map.getSize().y;
+  const sidebar = document.querySelector('.sidebar').getBoundingClientRect();
+  const dock = document.querySelector('.bottom-hud').getBoundingClientRect();
+  const map = state.map.getContainer().getBoundingClientRect();
+  const leftLimit = matchMedia('(max-width: 900px)').matches ? 12 : Math.max(12, sidebar.right - map.left + 12);
+  const bottomLimit = dock.top - map.top - 10;
+  const nodes = state.typhoonNodes.map(({ marker, point }) => {
+    const element = marker.getElement();
+    if (!element) return null;
+    const label = element.querySelector('.typhoon-node-time');
+    const center = state.map.latLngToContainerPoint(marker.getLatLng());
+    return { point, element, label, leader: element.querySelector('.typhoon-node-leader'), center,
+      size: element.offsetWidth, width: label.offsetWidth, height: label.offsetHeight };
+  }).filter(Boolean);
+  const icons = nodes.map(({ center, size }) => ({ x: center.x - size / 2 - 2, y: center.y - size / 2 - 2,
+    width: size + 4, height: size + 4 }));
+  const placed = [];
+  const overlap = (a, b) => a.x < b.x + b.width + 2 && a.x + a.width + 2 > b.x &&
+    a.y < b.y + b.height + 2 && a.y + a.height + 2 > b.y;
+  for (const node of nodes) {
+    const { center, size, width: labelWidth, height: labelHeight } = node;
+    const sides = node.point.forecast ? ['left', 'right'] : ['right', 'left'];
+    let best = null;
+    for (const offset of [0, -20, 20, -40, 40, -60, 60, -80, 80, -100, 100, -120, 120, -140, 140]) {
+      for (const side of sides) {
+        const box = { x: side === 'right' ? center.x + size / 2 + 6 : center.x - size / 2 - 6 - labelWidth,
+          y: center.y - labelHeight / 2 + offset, width: labelWidth, height: labelHeight };
+        const outside = Math.max(0, leftLimit - box.x) + Math.max(0, box.x + box.width - width + 10) +
+          Math.max(0, 12 - box.y) + Math.max(0, box.y + box.height - bottomLimit);
+        const collisions = placed.filter((other) => overlap(box, other)).length +
+          icons.filter((icon) => overlap(box, icon)).length;
+        const score = outside * 1000 + collisions * 10000 + Math.abs(offset) +
+          (side === sides[0] ? 0 : 4);
+        if (!best || score < best.score) best = { box, score };
+      }
+    }
+    const box = best.box;
+    const anchorX = center.x - size / 2;
+    const anchorY = center.y - size / 2;
+    Object.assign(node.label.style, { left: (box.x - anchorX) + 'px', top: (box.y - anchorY) + 'px',
+      right: 'auto', bottom: 'auto', transform: 'none' });
+    const endX = Math.max(box.x, Math.min(center.x, box.x + box.width));
+    const endY = Math.max(box.y, Math.min(center.y, box.y + box.height));
+    const dx = endX - center.x;
+    const dy = endY - center.y;
+    Object.assign(node.leader.style, { left: size / 2 + 'px', top: size / 2 + 'px',
+      width: Math.hypot(dx, dy) + 'px', transform: 'rotate(' + Math.atan2(dy, dx) + 'rad)',
+      display: Math.hypot(dx, dy) > size / 2 + 8 ? 'block' : 'none' });
+    placed.push(box);
+  }
 }
 function renderTyphoons() {
   const active = activeTyphoons();
   $("typhoon-card").hidden = !active.length;
   if (state.typhoonGroup) state.typhoonGroup.clearLayers();
+  state.typhoonNodes = [];
   if (!active.length) { state.typhoonVisible = false; return; }
-  $("typhoon-card").innerHTML = '<span class="eyebrow">TROPICAL CYCLONE</span><strong>颱風動態 · ' +
-    escapeHtml(active.map((row) => row.name).join("、")) + '</strong><small>最新分析 ' +
-    escapeHtml(fmtTime(active[0].latest_at, true)) + ' · 路徑含預報位置</small>' +
+  $("typhoon-card").innerHTML = '<span class="eyebrow">颱風資訊</span><strong>' +
+    escapeHtml(active.map((row) => row.name).join("、")) + ' · 颱風路徑</strong><small>' +
+    escapeHtml(fmtTime(active[0].latest_at)) + ' 分析，含預報位置</small>' +
     '<button id="typhoon-toggle" type="button">' + (state.typhoonVisible ? "隱藏路徑" : "查看路徑") + '</button>';
-  $("typhoon-toggle").addEventListener("click", () => { state.typhoonVisible = !state.typhoonVisible; renderTyphoons();
+  $("typhoon-toggle").addEventListener("click", () => {
+    const opening = !state.typhoonVisible;
+    state.typhoonVisible = opening;
+    renderControls();
     if (state.typhoonVisible && state.map) {
-      const points = active.flatMap((row) => [...row.observed, ...(row.forecast || [])]
+      closeDetails();
+      const points = active.flatMap((row) => typhoonTrack(row)
         .map((point) => [point.latitude, point.longitude]));
-      state.map.fitBounds(L.latLngBounds([...points, [23.8, 120.96]]).pad(.1), { maxZoom: 7 });
+      const narrow = matchMedia('(max-width: 900px)').matches;
+      const overlayHeight = document.querySelector('.bottom-hud').getBoundingClientRect().height;
+      state.map.fitBounds(L.latLngBounds([...points, [23.8, 120.96]]).pad(.08), {
+        maxZoom: 7,
+        paddingTopLeft: narrow ? [24, 70] : [310, 70],
+        paddingBottomRight: [30, Math.ceil(overlayHeight + 30)]
+      });
       closeMenu();
+    } else {
+      state.map?.flyTo([23.78, 120.96], 8);
     }
   });
   if (!state.typhoonVisible || !state.typhoonGroup) return;
   for (const cyclone of active) {
-    const observed = cyclone.observed.map((point) => [point.latitude, point.longitude]);
-    const predicted = [cyclone.observed.at(-1), ...(cyclone.forecast || [])]
-      .map((point) => [point.latitude, point.longitude]);
-    L.polyline(observed, { color: "#f7b65a", weight: 3 }).addTo(state.typhoonGroup);
-    L.polyline(predicted, { color: "#f7b65a", weight: 3, dashArray: "8 7" }).addTo(state.typhoonGroup);
-    L.circleMarker(observed.at(-1), { radius: 8, color: "#fff", fillColor: "#e88a4e", fillOpacity: 1, weight: 2 })
-      .bindPopup(escapeHtml(cyclone.name + " · 分析位置 " + fmtTime(cyclone.latest_at, true))).addTo(state.typhoonGroup);
+    const track = typhoonTrack(cyclone);
+    if (!track.length) continue;
+    const observed = track.filter((point) => !point.forecast).map((point) => [point.latitude, point.longitude]);
+    const predicted = track.filter((point) => point.forecast).map((point) => [point.latitude, point.longitude]);
+    if (observed.length > 1) L.polyline(observed, { color: "#f0b975", weight: 2.5 }).addTo(state.typhoonGroup);
+    if (predicted.length) L.polyline(observed.length ? [observed.at(-1), ...predicted] : predicted,
+      { color: "#97d9e8", weight: 2.5, dashArray: "7 7" }).addTo(state.typhoonGroup);
+    track.forEach((point, index) => {
+      const position = ['label-right', 'label-above', 'label-left', 'label-below'][index % 4];
+      const marker = L.marker([point.latitude, point.longitude], {
+        icon: typhoonIcon(point, position),
+        title: cyclone.name + ' · ' + fmtTime(point.time) + (point.forecast ? ' · 預報' : ' · 分析'),
+        zIndexOffset: Math.round(num(point.wind_speed) || 0)
+      }).bindPopup(typhoonPopup(cyclone, point)).addTo(state.typhoonGroup);
+      state.typhoonNodes.push({ marker, point });
+    });
   }
+  requestAnimationFrame(layoutTyphoonLabels);
 }
 function distanceKm(lat1, lon1, lat2, lon2) {
   const radians = (degrees) => degrees * Math.PI / 180;
@@ -261,6 +385,12 @@ function marker(latlng, value, title, kind, onClick) {
 function renderMap() {
   if (!state.map || !state.data) return;
   state.markerGroup.clearLayers();
+  if (state.typhoonVisible) {
+    $("map-title").textContent = "颱風分析與預測路徑";
+    $("map-subtitle").textContent = "每個圖示代表一筆日期資料 · 大小依最大風速 · 實線分析、虛線預報";
+    return;
+  }
+  $("map-title").textContent = labels[state.layer];
   const query = state.search.toLocaleLowerCase();
   if (isForecast()) {
     for (const row of activeForecastRows()) {
@@ -283,7 +413,7 @@ function renderMap() {
     }
   }
   $("map-subtitle").textContent = isForecast() ? "縣市代表點 · " + periodLabel(...state.period.split("|")) :
-    state.map.getZoom() >= 9 ? "實際測站座標 · 點選圓點查看觀測" : "縣市測站平均 · 放大查看各測站";
+    state.map.getZoom() >= 9 ? "實際測站座標 · 點選圓點查看觀測" : "縣市測站平均 · 點選圓點查看概況";
 }
 function renderCities() {
   const field = currentField(), query = state.search.toLocaleLowerCase();
@@ -340,18 +470,16 @@ function forecastDetails(city) {
 }
 function selectCity(city) {
   if (!counties().includes(city)) return;
-  state.city = city; state.station = null; state.detailsOpen = true;
-  if (window.innerWidth > 860 && state.map && state.data.coordinates[city]) {
-    state.map.flyTo(state.data.coordinates[city], isForecast() ? 8 : 9, { duration: .6 });
-  }
-  renderCities(); renderOverview(); renderDetails(); updateUrl(); if (state.basemap === "dark") renderCountyAreas();
+  state.city = city; state.station = null; state.detailsOpen = false; state.search = ""; $("search").value = "";
+  renderCities(); renderOverview(); renderDetails(); renderMap(); updateUrl(); if (state.basemap === "dark") renderCountyAreas();
   closeMenu();
 }
 function selectStation(id) {
   const row = stationRows().find((item) => item.station_id === id);
   if (!row) return;
-  state.station = id; state.city = row.county; state.detailsOpen = true;
-  renderCities(); renderOverview(); renderDetails(); updateUrl(); if (state.basemap === "dark") renderCountyAreas();
+  state.station = id; state.city = row.county; state.detailsOpen = true; state.search = ""; $("search").value = "";
+  renderCities(); renderOverview(); renderDetails(); renderMap(); updateUrl(); if (state.basemap === "dark") renderCountyAreas();
+  state.map?.flyTo([row.latitude, row.longitude], 10);
   closeMenu();
 }
 function renderDetails() {
@@ -419,26 +547,40 @@ function renderDataDialog() {
     '</span><strong>' + escapeHtml(run.status === "success" ? "成功 · " + run.record_count + " 筆" : "失敗 · " + (run.error_message || "未知錯誤")) + '</strong></div>').join("") || '<p>尚無爬蟲紀錄。</p>';
 }
 function renderControls() {
-  document.querySelectorAll(".layer-button").forEach((button) => button.classList.toggle("active", button.dataset.layer === state.layer));
+  if (state.typhoonVisible && !activeTyphoons().length) state.typhoonVisible = false;
+  document.body.classList.toggle("typhoon-mode", state.typhoonVisible);
+  if (isForecast()) state.forecastLayer = state.layer;
+  document.querySelectorAll(".layer-button").forEach((button) => {
+    const active = button.dataset.layer === state.layer;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   $("map-title").textContent = labels[state.layer];
   const times = forecastPeriods();
   if (!times.some(([key]) => key === state.period)) {
     state.period = times.find(([, row]) => new Date(row.end_time).getTime() > Date.now())?.[0] || times.at(-1)?.[0] || "";
   }
-  $("period-control").hidden = !isForecast();
-  $("timeline-control").hidden = !isForecast() || times.length < 2;
+  $("period-control").hidden = !isForecast() || state.typhoonVisible;
+  $("timeline-control").hidden = state.typhoonVisible;
+  $("download").hidden = state.typhoonVisible;
   $("period-select").innerHTML = times.map(([key, row]) =>
     '<option value="' + escapeHtml(key) + '">' + escapeHtml(periodLabel(row.start_time, row.end_time)) + '</option>').join("");
   $("period-select").value = state.period;
+  const periodIndex = Math.max(times.findIndex(([key]) => key === state.period), 0);
   $("period-range").max = String(Math.max(times.length - 1, 0));
-  $("period-range").value = String(Math.max(times.findIndex(([key]) => key === state.period), 0));
-  $("timeline-label").textContent = periodLabel(...state.period.split("|"));
-  $("dock-title").textContent = isForecast() ? "預報有效時段" : "最新測站觀測";
-  $("dock-time").textContent = isForecast() ? fmtTime(state.data.forecast.fetched_at, true) + " 抓取" :
+  $("period-range").value = String(periodIndex);
+  $("period-range").disabled = times.length < 2;
+  $("timeline-label").textContent = state.period ? periodLabel(...state.period.split("|")) : "目前沒有預報時段";
+  $("period-range").setAttribute("aria-valuetext", $("timeline-label").textContent);
+  $("timeline-start").textContent = times.length ? fmtTime(times[0][1].start_time) : "—";
+  $("timeline-end").textContent = times.length ? fmtTime(times.at(-1)[1].end_time) : "—";
+  $("dock-title").textContent = state.typhoonVisible ? "颱風路徑" : isForecast() ? "預報有效時段" : "最新測站觀測";
+  $("dock-time").textContent = state.typhoonVisible ? fmtTime(state.data.typhoons.source_updated, true) + " 發布" :
+    isForecast() ? fmtTime(state.data.forecast.fetched_at, true) + " 抓取" :
     fmtTime(state.data.observations.fetched_at, true) + " 抓取";
-  const source = isForecast() ? state.data.forecast : state.data.observations;
+  const source = state.typhoonVisible ? state.data.typhoons : isForecast() ? state.data.forecast : state.data.observations;
   const age = source.fetched_at ? Date.now() - new Date(source.fetched_at).getTime() : Infinity;
-  $("freshness").textContent = (isForecast() ? "預報抓取 " : "觀測抓取 ") + fmtTime(source.fetched_at) +
+  $("freshness").textContent = (state.typhoonVisible ? "颱風抓取 " : isForecast() ? "預報抓取 " : "觀測抓取 ") + fmtTime(source.fetched_at) +
     (age > 12 * 3600000 ? " · 資料較舊" : "");
   document.querySelector(".status-dot").classList.toggle("stale", age > 12 * 3600000);
   renderLegend(); renderFavorites(); renderCities(); renderOverview(); renderMap(); renderDetails();
@@ -464,31 +606,41 @@ async function loadData() {
     const data = await response.json();
     if (!data || data.schema_version !== 1 || !data.observations || !Array.isArray(data.observations.rows)) throw new Error("資料快照格式錯誤");
     state.data = data;
-    if (!counties().includes(state.city)) state.city = state.favorites.find((city) => counties().includes(city)) ||
-      (counties().includes("臺北市") ? "臺北市" : counties()[0] || null);
+    if (!counties().includes(state.city)) state.city = null;
     renderControls();
     if (!data.observations.count) showNotice("尚無測站資料。請先在本機執行 python scripts/fetch_once.py --all。");
   } catch (error) { showNotice(error.message + "；請先執行爬蟲並匯出 JSON。"); }
   finally { $("refresh").disabled = false; }
 }
 document.querySelectorAll(".layer-button").forEach((button) => button.addEventListener("click", () => {
-  state.layer = button.dataset.layer; state.station = null; if (state.data) renderControls(); closeMenu();
+  state.layer = button.dataset.layer; state.station = null; state.typhoonVisible = false;
+  if (state.data) renderControls(); closeMenu();
 }));
 document.querySelectorAll(".basemap-button").forEach((button) => button.addEventListener("click", () => setBasemap(button.dataset.basemap)));
-$("search").addEventListener("input", (event) => { state.search = event.target.value.trim(); if (state.data) { renderCities(); renderMap(); } });
+$("city-toggle").addEventListener("click", () => setCityBrowserOpen(!$("city-browser").classList.contains("open")));
+$("search").addEventListener("input", (event) => { state.search = event.target.value.trim(); if (state.search) setCityBrowserOpen(true); if (state.data) { renderCities(); renderMap(); } });
 $("period-select").addEventListener("change", (event) => { state.period = event.target.value; renderControls(); });
 $("period-range").addEventListener("input", (event) => {
-  state.period = forecastPeriods()[Number(event.target.value)]?.[0] || state.period; renderControls();
+  if (state.typhoonVisible) return;
+  const period = forecastPeriods()[Number(event.target.value)]?.[0];
+  if (!period || (period === state.period && isForecast())) return;
+  state.period = period;
+  if (!isForecast()) {
+    state.layer = state.forecastLayer;
+    state.station = null;
+  }
+  renderControls();
 });
 $("favorite-toggle").addEventListener("click", toggleFavorite);
-$("overview-details").addEventListener("click", () => { if (state.city) selectCity(state.city); });
+$("overview-details").addEventListener("click", () => { if (state.city) { state.detailsOpen = true; renderOverview(); renderDetails(); } });
+$("overview-close").addEventListener("click", () => { state.city = null; state.station = null; state.detailsOpen = false; renderCities(); renderOverview(); renderDetails(); updateUrl(); if (state.basemap === "dark") renderCountyAreas(); });
 $("share-view").addEventListener("click", async () => {
   updateUrl();
   try { await navigator.clipboard.writeText(location.href); showNotice("目前縣市與圖層連結已複製。"); }
   catch { window.prompt("複製目前畫面連結", location.href); }
 });
 $("locate").addEventListener("click", locateNearestStation);
-$("zoom-home").addEventListener("click", () => state.map?.flyTo([23.78, 120.96], 7));
+$("zoom-home").addEventListener("click", () => state.map?.flyTo([23.78, 120.96], 8));
 $("download").addEventListener("click", downloadCsv);
 $("refresh").addEventListener("click", loadData);
 $("data-button").addEventListener("click", () => $("data-dialog").showModal());
