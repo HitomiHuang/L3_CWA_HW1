@@ -38,6 +38,19 @@ class FakeClient:
             "WeatherElement": {"AirTemperature": "29", "RelativeHumidity": "70"},
         }]}}
 
+    def fetch_file(self, dataset_id, format="XML"):
+        self_file = """<cwaopendata xmlns="urn:cwa:gov:tw:cwacommon:0.1">
+          <Sent>2026-09-25T14:00:00+08:00</Sent><TropicalCyclones><TropicalCyclone>
+          <TyphoonName>TEST</TyphoonName><CwaTyphoonName>測試颱風</CwaTyphoonName>
+          <AnalysisData><Fix><DateTime>2026-09-25T14:00:00+08:00</DateTime>
+          <CoordinateLongitude>123.5</CoordinateLongitude><CoordinateLatitude>23.5</CoordinateLatitude>
+          <MaxWindSpeed>30</MaxWindSpeed></Fix></AnalysisData>
+          <ForecastData><Fix><InitialTime>2026-09-25T14:00:00+08:00</InitialTime>
+          <ForecastHour>6</ForecastHour><CoordinateLongitude>122.5</CoordinateLongitude>
+          <CoordinateLatitude>24.5</CoordinateLatitude></Fix></ForecastData>
+          </TropicalCyclone></TropicalCyclones></cwaopendata>"""
+        return self_file.encode("utf-8")
+
 
 class FailingClient(FakeClient):
     def fetch_36_hour_forecast(self):
@@ -55,6 +68,7 @@ class CrawlerSnapshotTest(unittest.TestCase):
             self.assertEqual(service.refresh()[1], 1)
             self.assertEqual(service.refresh_weekly_forecast()[1], 1)
             self.assertEqual(service.refresh_observations()[1], 1)
+            self.assertEqual(service.refresh_typhoons()[1], 1)
             with self.assertRaises(RuntimeError):
                 WeatherService(repository, FailingClient()).refresh()
 
@@ -62,6 +76,9 @@ class CrawlerSnapshotTest(unittest.TestCase):
             self.assertEqual(snapshot["forecast"]["count"], 1)
             self.assertEqual(snapshot["weekly"]["count"], 1)
             self.assertEqual(snapshot["observations"]["count"], 1)
+            self.assertEqual(snapshot["typhoons"]["count"], 1)
+            self.assertEqual(snapshot["typhoons"]["rows"][0]["forecast"][0]["time"],
+                             "2026-09-25T20:00:00+08:00")
             self.assertEqual(snapshot["crawl_runs"][0]["status"], "failed")
             self.assertEqual(snapshot["crawl_runs"][1]["status"], "success")
             self.assertNotIn("private-test-key", output.read_text(encoding="utf-8"))

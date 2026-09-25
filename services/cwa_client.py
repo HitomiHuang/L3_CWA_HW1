@@ -60,3 +60,17 @@ class CWAClient:
         if not isinstance(payload.get("records"), dict) or not payload["records"]:
             raise CWAClientError(f"資料集 {dataset_id} 沒有可用資料。")
         return payload
+
+    def fetch_file(self, dataset_id: str, format: str = "XML") -> bytes:
+        """Download a CWA file dataset, which is distinct from the REST datastore."""
+        if not self.api_key:
+            raise CWAClientError("找不到 CWA_API_KEY；請在 .env 或環境變數設定。")
+        url = f"https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/{dataset_id}"
+        url += "?" + urlencode({"Authorization": self.api_key, "format": format})
+        try:
+            with urlopen(url, timeout=self.timeout) as response:
+                return response.read()
+        except HTTPError as exc:
+            raise CWAClientError(f"中央氣象署檔案下載回應 HTTP {exc.code}。") from exc
+        except (URLError, TimeoutError) as exc:
+            raise CWAClientError("無法連線中央氣象署檔案下載服務，請稍後重試。") from exc

@@ -3,12 +3,13 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from config import CWA_DATASET_ID, OBSERVATION_DATASET_ID, TIMEZONE, WEEKLY_DATASET_ID
+from config import CWA_DATASET_ID, OBSERVATION_DATASET_ID, TIMEZONE, TYPHOON_DATASET_ID, WEEKLY_DATASET_ID
 from database.repository import ForecastRepository
 from services.cwa_client import CWAClient
 from services.forecast_parser import parse_36_hour_forecast, validate_forecast_rows
 from services.observation_parser import parse_station_observations
 from services.weekly_forecast_parser import parse_weekly_forecast
+from services.typhoon_parser import parse_typhoon_xml
 
 
 class WeatherService:
@@ -63,3 +64,12 @@ class WeatherService:
         fetched_at = datetime.now(ZoneInfo(TIMEZONE)).isoformat(timespec="seconds")
         run_id = self.repository.save_observation_run(OBSERVATION_DATASET_ID, fetched_at, source_updated, rows)
         return run_id, len(rows)
+
+    def refresh_typhoons(self) -> tuple[int, int]:
+        return self._recorded(TYPHOON_DATASET_ID, self._refresh_typhoons)
+
+    def _refresh_typhoons(self) -> tuple[int, int]:
+        cyclones, source_updated = parse_typhoon_xml(self.client.fetch_file(TYPHOON_DATASET_ID))
+        fetched_at = datetime.now(ZoneInfo(TIMEZONE)).isoformat(timespec="seconds")
+        run_id = self.repository.save_typhoon_run(TYPHOON_DATASET_ID, fetched_at, source_updated, cyclones)
+        return run_id, len(cyclones)

@@ -38,6 +38,7 @@ def build_snapshot(database_path: str | Path) -> dict:
             "SELECT dataset_id, started_at, finished_at, status, record_count, error_message "
             "FROM crawl_runs ORDER BY id DESC LIMIT 12"
         ).fetchall()]
+        typhoon_run = latest("typhoon_runs")
         return {
             "schema_version": 1,
             "exported_at": datetime.now(ZoneInfo(TIMEZONE)).isoformat(timespec="seconds"),
@@ -50,6 +51,12 @@ def build_snapshot(database_path: str | Path) -> dict:
             "observations": dataset("observation_runs", "station_observations",
                                     "station_id, station_name, county, town, observed_at, latitude, longitude, weather, "
                                     "temperature, relative_humidity, wind_speed", "station_count"),
+            "typhoons": {
+                "fetched_at": typhoon_run["fetched_at"] if typhoon_run else None,
+                "source_updated": typhoon_run["source_updated"] if typhoon_run else None,
+                "count": typhoon_run["cyclone_count"] if typhoon_run else 0,
+                "rows": json.loads(typhoon_run["payload_json"]) if typhoon_run else [],
+            },
             "crawl_runs": crawls,
         }
     finally:

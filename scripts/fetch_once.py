@@ -31,6 +31,7 @@ def main() -> int:
         jobs.extend([
             ("一週預報", service.refresh_weekly_forecast),
             ("測站觀測", service.refresh_observations),
+            ("颱風動態", service.refresh_typhoons),
         ])
     failures = 0
     for label, refresh in jobs:

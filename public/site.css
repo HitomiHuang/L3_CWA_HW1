@@ -140,3 +140,50 @@ body:has(.details.open) .leaflet-top.leaflet-right{right:380px}
   .bottom-dock .legend{order:3}
   body:has(#period-control:not([hidden])) .details.open{bottom:245px}
 }
+
+/* County summary and controls added to the map view. */
+.overview[hidden],.favorite-wrap[hidden],.typhoon-card[hidden],.timeline-control[hidden]{display:none!important}
+.overview{position:fixed;z-index:790;left:288px;top:20px;width:310px;border-radius:18px;padding:15px 17px;color:#24445b}
+.overview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.overview-head h2{font-size:20px;margin:3px 0 0}
+.overview-actions{display:flex;gap:5px}
+.overview-actions button{border:0;border-radius:8px;background:#edf4f7;color:#2b6886;padding:5px 8px;font-size:11px;font-weight:700}
+.overview-actions #favorite-toggle{font-size:19px;line-height:1;padding:2px 7px}
+.overview-primary{display:flex;align-items:end;justify-content:space-between;gap:7px;margin-top:11px}
+.overview-primary small{display:block;font-size:10px;color:#8098a6}
+.overview-primary strong{display:block;font-size:28px;letter-spacing:-.04em}
+.overview-primary>span{font-size:10px;color:#8297a5;text-align:right;padding-bottom:4px}
+.overview-forecast{display:flex;justify-content:space-between;gap:8px;margin-top:9px;padding-top:9px;border-top:1px solid #e7eef1;font-size:12px}
+.overview-forecast strong{white-space:nowrap}
+.overview-meta{display:flex;justify-content:space-between;gap:8px;color:#5c8296;font-size:10px;margin-top:5px}
+.overview-meta span:last-child{text-align:right}
+.overview-source{font-size:9px;color:#9aabb5;margin-top:10px;line-height:1.45}
+.overview-details{width:100%;border:0;border-radius:8px;background:#e7f1f5;color:#266b86;padding:7px;margin-top:10px;text-align:left;font-size:10px;font-weight:700}
+.favorite-wrap{margin:0 5px 12px}
+.favorite-list{display:flex;flex-wrap:wrap;gap:5px;padding:0 5px}
+.favorite-list button{border:1px solid rgba(184,225,238,.25);background:rgba(184,225,238,.1);border-radius:99px;padding:5px 9px;color:#e5f3f7;font-size:10px}
+.typhoon-card{display:grid;gap:6px;margin:0 6px 12px;padding:11px;border-radius:12px;background:rgba(248,172,91,.15);border:1px solid rgba(248,172,91,.35)}
+.typhoon-card .eyebrow{color:#ffc282}
+.typhoon-card strong{font-size:11px;color:#fff3e3}
+.typhoon-card small{font-size:10px;color:#e4c6ab;line-height:1.5}
+.typhoon-card button{justify-self:start;border:0;border-radius:7px;background:#f0ae68;color:#382917;font-size:10px;font-weight:800;padding:6px 9px}
+.timeline-control{display:flex;align-items:center;gap:9px;flex-basis:100%;padding:6px 2px 2px;border-top:1px solid rgba(197,225,239,.14)}
+.timeline-control label{font-size:10px;color:#aac5d2;white-space:nowrap}
+.timeline-control input{flex:1;min-width:50px;accent-color:#8acbdc}
+.timeline-control span{font-size:10px;color:#e2f0f5;white-space:nowrap}
+@media(max-width:1120px){.overview{left:272px}}
+@media(max-width:860px){
+  .overview{top:70px;left:12px;width:min(300px,calc(100vw - 24px));padding:11px 13px}
+  .overview-primary strong{font-size:23px}
+  .overview-source{display:none}
+  body:has(.details.open) .overview{display:none}
+  body:has(#timeline-control:not([hidden])) .details.open{bottom:270px}
+}
+@media(max-width:550px){
+  .overview{top:70px;width:min(260px,calc(100vw - 24px))}
+  .overview-forecast{font-size:11px}
+  .timeline-control{flex-wrap:wrap;gap:3px 7px}
+  .timeline-control label{flex-basis:100%}
+  .timeline-control span{font-size:9px}
+  body:has(#timeline-control:not([hidden])) .details.open{bottom:310px}
+}

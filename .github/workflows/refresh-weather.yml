@@ -2,7 +2,7 @@ name: 更新天氣資料
 
 on:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 permissions:

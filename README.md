@@ -41,7 +41,7 @@ python scripts/dev_server.py
 
 1. 將專案推送至 GitHub，在儲存庫 **Settings → Secrets and variables → Actions** 建立 CWA_API_KEY Repository secret。
 2. 匯入同一個儲存庫到 Vercel；Framework Preset 選 **Other**，Root Directory 用專案根目錄。vercel.json 已設定 public 為輸出目錄。**Vercel 不需要 CWA_API_KEY**。
-3. .github/workflows/refresh-weather.yml 每小時執行一次，也可在 GitHub Actions 頁面手動執行。它抓取 CWA API，將 SQLite 資料庫與 JSON 快照提交回儲存庫。新提交由 Vercel 的 Git 整合重新部署。
+3. .github/workflows/refresh-weather.yml 每 6 小時執行一次，也可在 GitHub Actions 頁面手動執行。它抓取 CWA API，將 SQLite 資料庫與 JSON 快照提交回儲存庫。新提交由 Vercel 的 Git 整合重新部署。
 
 GitHub Actions 排程可能延遲，或因儲存庫設定、分支保護、缺少 Secret 而失敗。網站會顯示最後一次成功發布的快照與時間；Vercel 靜態頁本身不會直接更新資料。若先只需展示網站，儲存庫內已包含一份可顯示的 public/data/snapshot.json。
 

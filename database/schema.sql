@@ -101,3 +101,12 @@ CREATE TABLE IF NOT EXISTS station_observations (
 
 CREATE INDEX IF NOT EXISTS idx_station_observations_run_county_time
     ON station_observations (run_id, county, observed_at DESC);
+
+CREATE TABLE IF NOT EXISTS typhoon_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dataset_id TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    source_updated TEXT,
+    cyclone_count INTEGER NOT NULL,
+    payload_json TEXT NOT NULL
+);

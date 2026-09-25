@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -30,6 +31,17 @@ class ForecastRepository:
         schema = self.schema_path.read_text(encoding="utf-8")
         with self._connection() as connection:
             connection.executescript(schema)
+
+    def save_typhoon_run(self, dataset_id: str, fetched_at: str, source_updated: str | None,
+                         cyclones: list[dict[str, Any]]) -> int:
+        with self._connection() as connection:
+            cursor = connection.execute(
+                "INSERT INTO typhoon_runs (dataset_id, fetched_at, source_updated, cyclone_count, payload_json) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (dataset_id, fetched_at, source_updated, len(cyclones),
+                 json.dumps(cyclones, ensure_ascii=False, allow_nan=False)),
+            )
+        return int(cursor.lastrowid)
 
     def save_forecast_run(self, dataset_id: str, fetched_at: str, issue_time: str | None,
                           source_updated: str | None, rows: list[dict[str, Any]]) -> int:
